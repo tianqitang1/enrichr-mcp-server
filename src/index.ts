@@ -26,7 +26,9 @@ function parseConfig() {
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
     serverName: "enrichr-server",
-    version: "0.1.0"
+    version: "0.1.0",
+    maxTermsPerLibrary: 10, // Default to 10 terms per library
+    format: "detailed" as "detailed" | "compact" | "minimal" // Default to detailed format
   };
 
   // Parse CLI arguments
@@ -45,6 +47,25 @@ function parseConfig() {
         config.serverName = nameArg;
         i++;
       }
+    } else if (arg === '--max-terms' || arg === '-m') {
+      const maxTermsArg = args[i + 1];
+      if (maxTermsArg) {
+        const maxTerms = parseInt(maxTermsArg);
+        if (!isNaN(maxTerms) && maxTerms > 0) {
+          config.maxTermsPerLibrary = maxTerms;
+        }
+        i++;
+      }
+    } else if (arg === '--format' || arg === '-f') {
+      const formatArg = args[i + 1];
+      if (formatArg && ['detailed', 'compact', 'minimal'].includes(formatArg)) {
+        config.format = formatArg as "detailed" | "compact" | "minimal";
+        i++;
+      }
+    } else if (arg === '--compact' || arg === '-c') {
+      config.format = "compact";
+    } else if (arg === '--minimal') {
+      config.format = "minimal";
     } else if (arg === '--help' || arg === '-h') {
       console.log(`
 Enrichr MCP Server
@@ -55,15 +76,28 @@ Options:
   -l, --libraries <libs>    Comma-separated list of default Enrichr libraries
                            (default: GO_Biological_Process_2025)
   -n, --name <name>        Server name (default: enrichr-server)
+  -m, --max-terms <num>    Maximum terms to show per library (default: 10)
+  -f, --format <format>    Output format: detailed, compact, minimal (default: detailed)
+  -c, --compact            Use compact format (same as --format compact)
+      --minimal            Use minimal format (same as --format minimal)
   -h, --help              Show this help message
+
+Format Options:
+  detailed   - Full details: p-values, odds ratios, gene lists (default)
+  compact    - Term name + p-value + gene count (saves ~50% context)
+  minimal    - Just term name + p-value (saves ~80% context)
 
 Environment Variables:
   ENRICHR_DEFAULT_LIBRARIES  Comma-separated list of default libraries
   ENRICHR_SERVER_NAME        Server name
+  ENRICHR_MAX_TERMS          Maximum terms per library
+  ENRICHR_FORMAT             Output format (detailed/compact/minimal)
 
 Examples:
   enrichr-mcp-server --libraries "GO_Biological_Process_2025,KEGG_2021_Human"
-  enrichr-mcp-server -l "MSigDB_Hallmark_2020"
+  enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
+  enrichr-mcp-server --format minimal --max-terms 30
+  enrichr-mcp-server --minimal --max-terms 50  # Ultra-compact for max coverage
   ENRICHR_DEFAULT_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
 
 Popular Libraries:
@@ -91,6 +125,20 @@ Popular Libraries:
     config.serverName = process.env.ENRICHR_SERVER_NAME;
   }
 
+  if (process.env.ENRICHR_MAX_TERMS) {
+    const maxTerms = parseInt(process.env.ENRICHR_MAX_TERMS);
+    if (!isNaN(maxTerms) && maxTerms > 0) {
+      config.maxTermsPerLibrary = maxTerms;
+    }
+  }
+
+  if (process.env.ENRICHR_FORMAT) {
+    const format = process.env.ENRICHR_FORMAT;
+    if (['detailed', 'compact', 'minimal'].includes(format)) {
+      config.format = format as "detailed" | "compact" | "minimal";
+    }
+  }
+
   return config;
 }
 
@@ -100,6 +148,8 @@ const CONFIG = parseConfig();
 console.error(`🧬 Enrichr MCP Server starting...`);
 console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
 console.error(`🏷️  Server name: ${CONFIG.serverName}`);
+console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
+console.error(`📝 Format: ${CONFIG.format}`);
 
 /**
  * Interface for Enrichr enrichment results
@@ -203,7 +253,11 @@ async function queryEnrichrLibraries(
 /**
  * Format enrichment results for multiple libraries
  */
-function formatMultiLibraryResults(results: { [library: string]: EnrichmentResult | EnrichmentError }): string {
+function formatMultiLibraryResults(
+  results: { [library: string]: EnrichmentResult | EnrichmentError }, 
+  maxTerms: number = CONFIG.maxTermsPerLibrary,
+  format: "detailed" | "compact" | "minimal" = CONFIG.format
+): string {
   const outputLines: string[] = [];
   
   for (const [library, result] of Object.entries(results)) {
@@ -221,18 +275,40 @@ function formatMultiLibraryResults(results: { [library: string]: EnrichmentResul
       continue;
     }
     
-    outputLines.push(`Found ${significant_terms} significant terms (adjusted p < 0.05) out of ${total_terms} total terms:\n`);
+    const actualTermsShown = Math.min(significant_terms, maxTerms);
     
-    libraryResults.slice(0, 10).forEach((termInfo, i) => { // Show top 10 results per library
-      const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
-      outputLines.push(`${i + 1}. ${termName}`);
-      outputLines.push(`   Adjusted P-value: ${adjustedPValue.toExponential(2)}`);
-      outputLines.push(`   Raw P-value: ${pValue.toExponential(2)}`);
-      outputLines.push(`   Odds Ratio: ${oddsRatio.toFixed(2)}`);
-      outputLines.push(`   Combined Score: ${combinedScore.toFixed(2)}`);
-      outputLines.push(`   Overlapping Genes (${overlappingGenes.length}): ${overlappingGenes.join(', ')}`);
-      outputLines.push("");
-    });
+    outputLines.push(`Found ${significant_terms} significant terms (adjusted p < 0.05) out of ${total_terms} total terms:`);
+    if (significant_terms > maxTerms) {
+      outputLines.push(`Showing top ${actualTermsShown} terms (use --max-terms to show more):\n`);
+    } else {
+      outputLines.push('');
+    }
+    
+    if (format === "compact") {
+      // Compact format: more terms, less detail
+      libraryResults.slice(0, maxTerms).forEach((termInfo, i) => {
+        const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+        outputLines.push(`${i + 1}. ${termName} (adj-p: ${adjustedPValue.toExponential(2)}, genes: ${overlappingGenes.length})`);
+      });
+    } else if (format === "minimal") {
+      // Minimal format: just term name and p-value
+      libraryResults.slice(0, maxTerms).forEach((termInfo, i) => {
+        const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+        outputLines.push(`${i + 1}. ${termName} (p: ${pValue.toExponential(2)})`);
+      });
+    } else {
+      // Detailed format: fewer terms, more detail
+      libraryResults.slice(0, maxTerms).forEach((termInfo, i) => {
+        const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+        outputLines.push(`${i + 1}. ${termName}`);
+        outputLines.push(`   Adjusted P-value: ${adjustedPValue.toExponential(2)}`);
+        outputLines.push(`   Raw P-value: ${pValue.toExponential(2)}`);
+        outputLines.push(`   Odds Ratio: ${oddsRatio.toFixed(2)}`);
+        outputLines.push(`   Combined Score: ${combinedScore.toFixed(2)}`);
+        outputLines.push(`   Overlapping Genes (${overlappingGenes.length}): ${overlappingGenes.join(', ')}`);
+        outputLines.push("");
+      });
+    }
   }
   
   return outputLines.join("\n");
@@ -308,7 +384,11 @@ async function queryEnrichrGoBp(geneList: string[], description: string = "Gene 
 /**
  * Format enrichment results for readable output
  */
-function formatEnrichmentResults(resultsData: EnrichmentResult | EnrichmentError): string {
+function formatEnrichmentResults(
+  resultsData: EnrichmentResult | EnrichmentError,
+  maxTerms: number = CONFIG.maxTermsPerLibrary,
+  format: "detailed" | "compact" | "minimal" = CONFIG.format
+): string {
   if ("error" in resultsData) {
     return `Error: ${resultsData.error}`;
   }
@@ -319,21 +399,43 @@ function formatEnrichmentResults(resultsData: EnrichmentResult | EnrichmentError
     return `No significant GO Biological Process terms found (adjusted p < 0.05) out of ${total_terms} total terms analyzed.`;
   }
   
+  const actualTermsShown = Math.min(significant_terms, maxTerms);
+  
   const outputLines = [
-    `Found ${significant_terms} significant GO Biological Process terms (adjusted p < 0.05) out of ${total_terms} total terms:\n`
+    `Found ${significant_terms} significant GO Biological Process terms (adjusted p < 0.05) out of ${total_terms} total terms:`
   ];
   
-  results.forEach((termInfo, i) => {
-    // termInfo format: [rank, term_name, p_value, odds_ratio, combined_score, overlapping_genes, adjusted_p_value, old_p_value, old_adjusted_p_value]
-    const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
-    outputLines.push(`${i + 1}. ${termName}`);
-    outputLines.push(`   Adjusted P-value: ${adjustedPValue.toExponential(2)}`);
-    outputLines.push(`   Raw P-value: ${pValue.toExponential(2)}`);
-    outputLines.push(`   Odds Ratio: ${oddsRatio.toFixed(2)}`);
-    outputLines.push(`   Combined Score: ${combinedScore.toFixed(2)}`);
-    outputLines.push(`   Overlapping Genes (${overlappingGenes.length}): ${overlappingGenes.join(', ')}`);
-    outputLines.push("");
-  });
+  if (significant_terms > maxTerms) {
+    outputLines.push(`Showing top ${actualTermsShown} terms (use --max-terms to show more):\n`);
+  } else {
+    outputLines.push('');
+  }
+  
+  if (format === "compact") {
+    // Compact format
+    results.slice(0, maxTerms).forEach((termInfo, i) => {
+      const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+      outputLines.push(`${i + 1}. ${termName} (adj-p: ${adjustedPValue.toExponential(2)}, genes: ${overlappingGenes.length})`);
+    });
+  } else if (format === "minimal") {
+    // Minimal format: just term name and p-value
+    results.slice(0, maxTerms).forEach((termInfo, i) => {
+      const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+      outputLines.push(`${i + 1}. ${termName} (p: ${pValue.toExponential(2)})`);
+    });
+  } else {
+    // Detailed format
+    results.slice(0, maxTerms).forEach((termInfo, i) => {
+      const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+      outputLines.push(`${i + 1}. ${termName}`);
+      outputLines.push(`   Adjusted P-value: ${adjustedPValue.toExponential(2)}`);
+      outputLines.push(`   Raw P-value: ${pValue.toExponential(2)}`);
+      outputLines.push(`   Odds Ratio: ${oddsRatio.toFixed(2)}`);
+      outputLines.push(`   Combined Score: ${combinedScore.toFixed(2)}`);
+      outputLines.push(`   Overlapping Genes (${overlappingGenes.length}): ${overlappingGenes.join(', ')}`);
+      outputLines.push("");
+    });
+  }
   
   return outputLines.join("\n");
 }
@@ -378,13 +480,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               items: {
                 type: "string"
               },
-              description: "List of Enrichr libraries to use for analysis. Common options include: 'GO_Biological_Process_2025', 'GO_Molecular_Function_2025', 'GO_Cellular_Component_2025', 'KEGG_2021_Human', 'Reactome_2022', 'WikiPathways_2023_Human', 'MSigDB_Hallmark_2020', 'Human_Phenotype_Ontology', 'GWAS_Catalog_2023', 'ChEA_2022', 'ENCODE_TF_ChIP-seq_2015', 'TargetScan_microRNA_2017'. Defaults to ['GO_Biological_Process_2025'] if not specified.",
+              description: "List of Enrichr libraries to use for analysis. Common options include: 'GO_Biological_Process_2025', 'GO_Molecular_Function_2025', 'GO_Cellular_Component_2025', 'KEGG_2021_Human', 'Reactome_2022', 'WikiPathways_2023_Human', 'MSigDB_Hallmark_2020', 'Human_Phenotype_Ontology', 'GWAS_Catalog_2023', 'ChEA_2022', 'ENCODE_TF_ChIP-seq_2015', 'TargetScan_microRNA_2017'. Defaults to configured default libraries if not specified.",
               default: CONFIG.defaultLibraries
             },
             description: {
               type: "string",
               description: "Optional description for the gene list",
               default: "Gene list for enrichment analysis"
+            },
+            maxTerms: {
+              type: "integer",
+              description: "Maximum number of terms to show per library. Use higher values (20-50) to capture more biological insights, especially for libraries with many significant terms.",
+              default: CONFIG.maxTermsPerLibrary,
+              minimum: 1,
+              maximum: 100
+            },
+            format: {
+              type: "string",
+              description: "Output format: detailed, compact, minimal",
+              default: CONFIG.format,
+              enum: ["detailed", "compact", "minimal"]
             }
           },
           required: ["genes"]
@@ -447,6 +562,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const genes = request.params.arguments?.genes as string[];
       const libraries = (request.params.arguments?.libraries as string[]) || CONFIG.defaultLibraries;
       const description = (request.params.arguments?.description as string) || "Gene list for enrichment analysis";
+      const maxTerms = request.params.arguments?.maxTerms as number || CONFIG.maxTermsPerLibrary;
+      const format = request.params.arguments?.format as "detailed" | "compact" | "minimal" || CONFIG.format;
       
       if (!genes) {
         return {
@@ -486,7 +603,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Query multiple libraries
       const resultsData = await queryEnrichrLibraries(genes, libraries, description);
-      const formattedResults = formatMultiLibraryResults(resultsData);
+      const formattedResults = formatMultiLibraryResults(resultsData, maxTerms, format);
       
       return {
         content: [{
@@ -530,7 +647,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       // Query single library (backward compatibility)
       const resultsData = await queryEnrichrGoBp(genes, description);
-      const formattedResults = formatEnrichmentResults(resultsData);
+      const formattedResults = formatEnrichmentResults(resultsData, CONFIG.maxTermsPerLibrary, CONFIG.format);
       
       return {
         content: [{
