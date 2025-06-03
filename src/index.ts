@@ -15,6 +15,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import fetch from "node-fetch";
 import { FormData } from "node-fetch";
+import { writeFileSync } from "fs";
+import { join } from "path";
 
 const ENRICHR_URL = "https://maayanlab.cloud/Enrichr";
 
@@ -26,9 +28,11 @@ function parseConfig() {
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
     serverName: "enrichr-server",
-    version: "0.1.0",
+    version: "0.1.5",
     maxTermsPerLibrary: 10, // Default to 10 terms per library
-    format: "detailed" as "detailed" | "compact" | "minimal" // Default to detailed format
+    format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
+    saveToFile: false, // Default to not saving to file
+    outputFile: "" // Default output file path
   };
 
   // Parse CLI arguments
@@ -62,6 +66,13 @@ function parseConfig() {
         config.format = formatArg as "detailed" | "compact" | "minimal";
         i++;
       }
+    } else if (arg === '--output' || arg === '-o') {
+      const outputArg = args[i + 1];
+      if (outputArg) {
+        config.outputFile = outputArg;
+        config.saveToFile = true;
+        i++;
+      }
     } else if (arg === '--compact' || arg === '-c') {
       config.format = "compact";
     } else if (arg === '--minimal') {
@@ -78,6 +89,7 @@ Options:
   -n, --name <name>        Server name (default: enrichr-server)
   -m, --max-terms <num>    Maximum terms to show per library (default: 10)
   -f, --format <format>    Output format: detailed, compact, minimal (default: detailed)
+  -o, --output <file>      Save complete results to TSV file
   -c, --compact            Use compact format (same as --format compact)
       --minimal            Use minimal format (same as --format minimal)
   -h, --help              Show this help message
@@ -92,12 +104,13 @@ Environment Variables:
   ENRICHR_SERVER_NAME        Server name
   ENRICHR_MAX_TERMS          Maximum terms per library
   ENRICHR_FORMAT             Output format (detailed/compact/minimal)
+  ENRICHR_OUTPUT_FILE        TSV output file path
 
 Examples:
   enrichr-mcp-server --libraries "GO_Biological_Process_2025,KEGG_2021_Human"
   enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
-  enrichr-mcp-server --format minimal --max-terms 30
-  enrichr-mcp-server --minimal --max-terms 50  # Ultra-compact for max coverage
+  enrichr-mcp-server --format minimal --max-terms 30 --output results.tsv
+  enrichr-mcp-server --minimal --max-terms 50 --output /tmp/enrichr_results.tsv
   ENRICHR_DEFAULT_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
 
 Popular Libraries:
@@ -139,6 +152,11 @@ Popular Libraries:
     }
   }
 
+  if (process.env.ENRICHR_OUTPUT_FILE) {
+    config.outputFile = process.env.ENRICHR_OUTPUT_FILE;
+    config.saveToFile = true;
+  }
+
   return config;
 }
 
@@ -150,6 +168,9 @@ console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
 console.error(`🏷️  Server name: ${CONFIG.serverName}`);
 console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
 console.error(`📝 Format: ${CONFIG.format}`);
+if (CONFIG.saveToFile) {
+  console.error(`💾 Output file: ${CONFIG.outputFile}`);
+}
 
 /**
  * Interface for Enrichr enrichment results
@@ -441,6 +462,77 @@ function formatEnrichmentResults(
 }
 
 /**
+ * Save enrichment results to TSV file
+ */
+function saveResultsToTSV(
+  results: { [library: string]: EnrichmentResult | EnrichmentError },
+  filename: string,
+  description: string = "Enrichment Analysis"
+): void {
+  try {
+    const timestamp = new Date().toISOString();
+    const tsvLines: string[] = [];
+    
+    // Add header
+    tsvLines.push("# Enrichr Enrichment Analysis Results");
+    tsvLines.push(`# Generated: ${timestamp}`);
+    tsvLines.push(`# Description: ${description}`);
+    tsvLines.push(`# Libraries: ${Object.keys(results).join(', ')}`);
+    tsvLines.push("#");
+    
+    // Add column headers
+    tsvLines.push([
+      "Library",
+      "Rank", 
+      "Term_Name",
+      "Term_ID",
+      "Adjusted_P_Value",
+      "Raw_P_Value", 
+      "Odds_Ratio",
+      "Combined_Score",
+      "Gene_Count",
+      "Overlapping_Genes"
+    ].join("\t"));
+    
+    // Add data rows
+    for (const [library, result] of Object.entries(results)) {
+      if ("error" in result) {
+        tsvLines.push([library, "ERROR", result.error, "", "", "", "", "", "", ""].join("\t"));
+        continue;
+      }
+      
+      result.results.forEach((termInfo) => {
+        const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
+        
+        // Extract term ID from term name if it exists (e.g., "Term Name (GO:1234567)")
+        const termIdMatch = termName.match(/\(([^)]+)\)$/);
+        const termId = termIdMatch ? termIdMatch[1] : "";
+        const cleanTermName = termId ? termName.replace(/\s*\([^)]+\)$/, "") : termName;
+        
+        tsvLines.push([
+          library,
+          rank.toString(),
+          cleanTermName,
+          termId,
+          adjustedPValue.toExponential(6),
+          pValue.toExponential(6),
+          oddsRatio.toFixed(4),
+          combinedScore.toFixed(4),
+          overlappingGenes.length.toString(),
+          overlappingGenes.join(';')
+        ].join("\t"));
+      });
+    }
+    
+    // Write to file
+    writeFileSync(filename, tsvLines.join("\n") + "\n");
+    
+  } catch (error) {
+    throw new Error(`❌ Error saving TSV file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
  * Create an MCP server with capabilities for tools only (Enrichr GO enrichment)
  */
 const server = new Server(
@@ -500,6 +592,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Output format: detailed, compact, minimal",
               default: CONFIG.format,
               enum: ["detailed", "compact", "minimal"]
+            },
+            outputFile: {
+              type: "string",
+              description: "Optional path to save complete results as TSV file. If specified, ALL significant terms will be saved to this file, regardless of maxTerms limit.",
+              default: CONFIG.outputFile
             }
           },
           required: ["genes"]
@@ -564,6 +661,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const description = (request.params.arguments?.description as string) || "Gene list for enrichment analysis";
       const maxTerms = request.params.arguments?.maxTerms as number || CONFIG.maxTermsPerLibrary;
       const format = request.params.arguments?.format as "detailed" | "compact" | "minimal" || CONFIG.format;
+      const outputFile = request.params.arguments?.outputFile as string || CONFIG.outputFile;
       
       if (!genes) {
         return {
@@ -604,6 +702,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Query multiple libraries
       const resultsData = await queryEnrichrLibraries(genes, libraries, description);
       const formattedResults = formatMultiLibraryResults(resultsData, maxTerms, format);
+      
+      // Save to TSV if output file is specified (either via CLI or tool parameter)
+      if (outputFile) {
+        try {
+          await saveResultsToTSV(resultsData, outputFile, description);
+          const savedMessage = `\n💾 Complete results saved to: ${outputFile}`;
+          return {
+            content: [{
+              type: "text",
+              text: formattedResults + savedMessage
+            }]
+          };
+        } catch (error) {
+          const errorMessage = `\n❌ Error saving TSV file: ${error instanceof Error ? error.message : String(error)}`;
+          return {
+            content: [{
+              type: "text",
+              text: formattedResults + errorMessage
+            }]
+          };
+        }
+      }
       
       return {
         content: [{

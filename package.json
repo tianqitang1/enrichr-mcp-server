@@ -1,7 +1,7 @@
 {
   "name": "enrichr-mcp-server",
-  "version": "0.1.4",
-  "description": "MCP server for Enrichr GO enrichment analysis",
+  "version": "0.1.5",
+  "description": "MCP Server for Enrichr gene set enrichment analysis with multi-library support",
   "type": "module",
   "main": "./build/index.js",
   "bin": {
