@@ -19,18 +19,6 @@ A Model Context Protocol (MCP) server that provides GO (Gene Ontology) enrichmen
 - **Detailed Results**: Provides p-values, z-scores, combined scores, and overlapping genes
 - **Error Handling**: Robust error handling with informative messages
 
-## Installation
-
-1. Clone or download this server
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Build the server:
-   ```bash
-   npm run build
-   ```
-
 ## Configuration
 
 Add this server to your MCP client configuration (e.g., `.cursor/mcp.json`):
@@ -39,10 +27,8 @@ Add this server to your MCP client configuration (e.g., `.cursor/mcp.json`):
 {
   "mcpServers": {
     "enrichr-go-server": {
-      "command": "node",
-      "args": ["/absolute/path/to/enrichr-mcp-server/build/index.js"],
-      "cwd": "/absolute/path/to/enrichr-mcp-server",
-      "env": {}
+      "command": "npx",
+      "args": ["-y", "enrichr-mcp-server"]
     }
   }
 }

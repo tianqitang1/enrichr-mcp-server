@@ -179,7 +179,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: "go_enrichment",
+        name: "go_enrichment", // Fallback tool name for more inclusive trigger words
         description: "Test genes for GO enrichment, analyze gene functions, or find enriched biological processes. Simple tool for functional analysis of gene lists. Same as query_enrichr_go_bp_tool but with a more intuitive name. Uses adjusted p-value < 0.05 for significance.",
         inputSchema: {
           type: "object",
