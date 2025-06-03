@@ -1,7 +1,7 @@
 <!--
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-03 14:34:14
+ * @LastEditTime: 2025-06-03 14:51:58
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr GO MCP Server
@@ -10,7 +10,7 @@
   <img src="icon.svg" alt="Enrichr MCP Server Icon" width="128" height="128">
 </div>
 
-A Model Context Protocol (MCP) server that provides GO (Gene Ontology) enrichment analysis using the Enrichr API. This server queries Enrichr for GO Biological Process enrichment and returns only statistically significant results (p < 0.05) to reduce context usage.
+A Model Context Protocol (MCP) server that provides GO (Gene Ontology) enrichment analysis using the [Enrichr](https://maayanlab.cloud/Enrichr/) API. This server queries Enrichr for GO Biological Process enrichment and returns only statistically significant results (p < 0.05) to reduce context usage.
 
 ## Features
 
@@ -103,6 +103,12 @@ This server uses the Enrichr API:
 This project follows the same license as the MCP TypeScript SDK.
 
 ## References
+
+- Chen EY, Tan CM, Kou Y, Duan Q, Wang Z, Meirelles GV, Clark NR, Ma'ayan A. Enrichr: interactive and collaborative HTML5 gene list enrichment analysis tool. BMC Bioinformatics. 2013; 128(14).
+
+- Kuleshov MV, Jones MR, Rouillard AD, Fernandez NF, Duan Q, Wang Z, Koplev S, Jenkins SL, Jagodnik KM, Lachmann A, McDermott MG, Monteiro CD, Gundersen GW, Ma'ayan A. Enrichr: a comprehensive gene set enrichment analysis web server 2016 update. Nucleic Acids Research. 2016; gkw377.
+
+- Xie Z, Bailey A, Kuleshov MV, Clarke DJB., Evangelista JE, Jenkins SL, Lachmann A, Wojciechowicz ML, Kropiwnicki E, Jagodnik KM, Jeon M, & Ma'ayan A. Gene set knowledge discovery with Enrichr. Current Protocols, 1, e90. 2021. doi: 10.1002/cpz1.90
 
 - [Enrichr](https://maayanlab.cloud/Enrichr/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)

@@ -1,0 +1,31 @@
+# Source files
+src/
+tsconfig.json
+
+# Development files
+.git/
+.gitignore
+node_modules/
+*.log
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+test/
+tests/
+*.test.js
+*.test.ts
+
+# Development docs
+ICON_README.md
+
+# Only keep the essential files
+# build/ - included (main compiled output)
+# README.md - included (documentation)
+# icon.svg - included (for branding)
+# package.json - automatically included 
