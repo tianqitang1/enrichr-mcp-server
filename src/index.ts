@@ -24,7 +24,7 @@ const ENRICHR_URL = "https://maayanlab.cloud/Enrichr";
 interface EnrichmentResult {
   total_terms: number;
   significant_terms: number;
-  results: Array<[number, string, number, number, number, string[], any, any, any]>;
+  results: Array<[number, string, number, number, number, string[], number, any, any]>;
 }
 
 /**
@@ -86,9 +86,9 @@ async function queryEnrichrGoBp(geneList: string[], description: string = "Gene 
 
     const allResults = enrichmentResults[geneSetLibrary];
     
-    // Filter for significant results (p < 0.05)
-    // Result format: [rank, term_name, p_value, z_score, combined_score, overlapping_genes, future_1, future_2, future_3]
-    const significantResults = allResults.filter((result: any[]) => result[2] < 0.05);
+    // Filter for significant results using adjusted p-value (adjusted p < 0.05)
+    // Result format: [rank, term_name, p_value, odds_ratio, combined_score, overlapping_genes, adjusted_p_value, old_p_value, old_adjusted_p_value]
+    const significantResults = allResults.filter((result: any[]) => result[6] < 0.05);
     
     return {
       total_terms: allResults.length,
@@ -112,19 +112,20 @@ function formatEnrichmentResults(resultsData: EnrichmentResult | EnrichmentError
   const { total_terms, significant_terms, results } = resultsData;
   
   if (significant_terms === 0) {
-    return `No significant GO Biological Process terms found (p < 0.05) out of ${total_terms} total terms analyzed.`;
+    return `No significant GO Biological Process terms found (adjusted p < 0.05) out of ${total_terms} total terms analyzed.`;
   }
   
   const outputLines = [
-    `Found ${significant_terms} significant GO Biological Process terms (p < 0.05) out of ${total_terms} total terms:\n`
+    `Found ${significant_terms} significant GO Biological Process terms (adjusted p < 0.05) out of ${total_terms} total terms:\n`
   ];
   
   results.forEach((termInfo, i) => {
-    // termInfo format: [rank, term_name, p_value, z_score, combined_score, overlapping_genes, future_1, future_2, future_3]
-    const [rank, termName, pValue, zScore, combinedScore, overlappingGenes] = termInfo;
+    // termInfo format: [rank, term_name, p_value, odds_ratio, combined_score, overlapping_genes, adjusted_p_value, old_p_value, old_adjusted_p_value]
+    const [rank, termName, pValue, oddsRatio, combinedScore, overlappingGenes, adjustedPValue] = termInfo;
     outputLines.push(`${i + 1}. ${termName}`);
-    outputLines.push(`   P-value: ${pValue.toExponential(2)}`);
-    outputLines.push(`   Z-score: ${zScore.toFixed(2)}`);
+    outputLines.push(`   Adjusted P-value: ${adjustedPValue.toExponential(2)}`);
+    outputLines.push(`   Raw P-value: ${pValue.toExponential(2)}`);
+    outputLines.push(`   Odds Ratio: ${oddsRatio.toFixed(2)}`);
     outputLines.push(`   Combined Score: ${combinedScore.toFixed(2)}`);
     outputLines.push(`   Overlapping Genes (${overlappingGenes.length}): ${overlappingGenes.join(', ')}`);
     outputLines.push("");
@@ -157,7 +158,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "query_enrichr_go_bp_tool",
-        description: "Perform GO (Gene Ontology) enrichment analysis using Enrichr. Use this tool when you need to: analyze gene functions, test GO enrichment, find biological processes, perform functional enrichment, analyze gene sets, identify overrepresented pathways, run GO analysis, perform gene ontology analysis, test for enriched biological terms, or analyze gene list functionality. Returns only statistically significant terms (p < 0.05) to reduce context usage. Analyzes GO Biological Process 2025 database.",
+        description: "Perform GO (Gene Ontology) enrichment analysis using Enrichr. Use this tool when you need to: analyze gene functions, test GO enrichment, find biological processes, perform functional enrichment, analyze gene sets, identify overrepresented pathways, run GO analysis, perform gene ontology analysis, test for enriched biological terms, or analyze gene list functionality. Returns only statistically significant terms (adjusted p < 0.05) to reduce context usage. Analyzes GO Biological Process 2025 database.",
         inputSchema: {
           type: "object",
           properties: {
@@ -179,7 +180,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "go_enrichment",
-        description: "Test genes for GO enrichment, analyze gene functions, or find enriched biological processes. Simple tool for functional analysis of gene lists. Same as query_enrichr_go_bp_tool but with a more intuitive name.",
+        description: "Test genes for GO enrichment, analyze gene functions, or find enriched biological processes. Simple tool for functional analysis of gene lists. Same as query_enrichr_go_bp_tool but with a more intuitive name. Uses adjusted p-value < 0.05 for significance.",
         inputSchema: {
           type: "object",
           properties: {
