@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient for the main background circle -->
+    <radialGradient id="bgGradient" cx="0.3" cy="0.3" r="0.8">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:1" />
+    </radialGradient>
+    
+    <!-- Gradient for DNA helix -->
+    <linearGradient id="dnaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradient for network nodes -->
+    <radialGradient id="nodeGradient" cx="0.3" cy="0.3" r="0.8">
+      <stop offset="0%" style="stop-color:#F59E0B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D97706;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Main background circle -->
+  <circle cx="32" cy="32" r="30" fill="url(#bgGradient)" stroke="#1E3A8A" stroke-width="2"/>
+  
+  <!-- DNA Double Helix Structure -->
+  <g transform="translate(12, 8)">
+    <!-- First strand of helix -->
+    <path d="M 4 8 Q 12 4, 20 8 Q 28 12, 36 8 Q 44 4, 52 8" 
+          stroke="url(#dnaGradient)" stroke-width="2.5" fill="none" opacity="0.9"/>
+    <path d="M 4 16 Q 12 20, 20 16 Q 28 12, 36 16 Q 44 20, 52 16" 
+          stroke="url(#dnaGradient)" stroke-width="2.5" fill="none" opacity="0.9"/>
+    
+    <!-- Second strand of helix -->
+    <path d="M 4 16 Q 12 12, 20 16 Q 28 20, 36 16 Q 44 12, 52 16" 
+          stroke="url(#dnaGradient)" stroke-width="2.5" fill="none" opacity="0.7"/>
+    <path d="M 4 8 Q 12 12, 20 8 Q 28 4, 36 8 Q 44 12, 52 8" 
+          stroke="url(#dnaGradient)" stroke-width="2.5" fill="none" opacity="0.7"/>
+    
+    <!-- Base pairs connecting the strands -->
+    <line x1="8" y1="10" x2="8" y2="14" stroke="#E5E7EB" stroke-width="1.5" opacity="0.8"/>
+    <line x1="16" y1="9" x2="16" y2="15" stroke="#E5E7EB" stroke-width="1.5" opacity="0.8"/>
+    <line x1="24" y1="10" x2="24" y2="14" stroke="#E5E7EB" stroke-width="1.5" opacity="0.8"/>
+    <line x1="32" y1="9" x2="32" y2="15" stroke="#E5E7EB" stroke-width="1.5" opacity="0.8"/>
+    <line x1="40" y1="10" x2="40" y2="14" stroke="#E5E7EB" stroke-width="1.5" opacity="0.8"/>
+  </g>
+  
+  <!-- Network/Enrichment visualization -->
+  <g transform="translate(8, 32)">
+    <!-- Central hub node (representing enriched GO term) -->
+    <circle cx="24" cy="8" r="4" fill="url(#nodeGradient)" stroke="#FBBF24" stroke-width="1"/>
+    
+    <!-- Surrounding gene nodes -->
+    <circle cx="12" cy="4" r="2.5" fill="#EF4444" opacity="0.8"/>
+    <circle cx="36" cy="4" r="2.5" fill="#EF4444" opacity="0.8"/>
+    <circle cx="8" cy="12" r="2.5" fill="#EF4444" opacity="0.8"/>
+    <circle cx="40" cy="12" r="2.5" fill="#EF4444" opacity="0.8"/>
+    <circle cx="16" cy="16" r="2.5" fill="#EF4444" opacity="0.8"/>
+    <circle cx="32" cy="16" r="2.5" fill="#EF4444" opacity="0.8"/>
+    
+    <!-- Connection lines (enrichment relationships) -->
+    <line x1="24" y1="8" x2="12" y2="4" stroke="#F97316" stroke-width="1.5" opacity="0.6"/>
+    <line x1="24" y1="8" x2="36" y2="4" stroke="#F97316" stroke-width="1.5" opacity="0.6"/>
+    <line x1="24" y1="8" x2="8" y2="12" stroke="#F97316" stroke-width="1.5" opacity="0.6"/>
+    <line x1="24" y1="8" x2="40" y2="12" stroke="#F97316" stroke-width="1.5" opacity="0.6"/>
+    <line x1="24" y1="8" x2="16" y2="16" stroke="#F97316" stroke-width="1.5" opacity="0.6"/>
+    <line x1="24" y1="8" x2="32" y2="16" stroke="#F97316" stroke-width="1.5" opacity="0.6"/>
+  </g>
+  
+  <!-- Server/API indicator (small geometric pattern) -->
+  <g transform="translate(44, 44)">
+    <rect x="0" y="0" width="12" height="2" rx="1" fill="#F3F4F6" opacity="0.9"/>
+    <rect x="0" y="4" width="12" height="2" rx="1" fill="#F3F4F6" opacity="0.7"/>
+    <rect x="0" y="8" width="12" height="2" rx="1" fill="#F3F4F6" opacity="0.9"/>
+    <circle cx="15" cy="5" r="1.5" fill="#10B981" opacity="0.8"/>
+  </g>
+  
+  <!-- Subtle highlight on top-left -->
+  <ellipse cx="22" cy="18" rx="8" ry="4" fill="#FFFFFF" opacity="0.1"/>
+</svg> 
