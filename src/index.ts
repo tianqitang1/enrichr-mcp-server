@@ -28,7 +28,7 @@ function parseConfig() {
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
     serverName: "enrichr-server",
-    version: "0.1.5",
+    version: "0.1.6",
     maxTermsPerLibrary: 10, // Default to 10 terms per library
     format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
     saveToFile: false, // Default to not saving to file
@@ -619,6 +619,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Optional description for the gene list",
               default: "Gene list for GO BP enrichment"
+            },
+            outputFile: {
+              type: "string",
+              description: "Optional path to save complete results as TSV file. If specified, ALL significant terms will be saved to this file, regardless of maxTerms limit.",
+              default: CONFIG.outputFile
             }
           },
           required: ["genes"]
@@ -641,6 +646,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Optional description for the gene list",
               default: "Gene list for GO BP enrichment"
+            },
+            outputFile: {
+              type: "string",
+              description: "Optional path to save complete results as TSV file. If specified, ALL significant terms will be saved to this file, regardless of maxTerms limit.",
+              default: CONFIG.outputFile
             }
           },
           required: ["genes"]
@@ -737,6 +747,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "go_enrichment": {
       const genes = request.params.arguments?.genes as string[];
       const description = (request.params.arguments?.description as string) || "Gene list for GO BP enrichment";
+      const outputFile = request.params.arguments?.outputFile as string || CONFIG.outputFile;
       
       if (!genes) {
         return {
@@ -768,6 +779,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Query single library (backward compatibility)
       const resultsData = await queryEnrichrGoBp(genes, description);
       const formattedResults = formatEnrichmentResults(resultsData, CONFIG.maxTermsPerLibrary, CONFIG.format);
+      
+      // Save to TSV if output file is specified (either via CLI or tool parameter)
+      if (outputFile) {
+        try {
+          // Convert single result to multi-library format for TSV saving
+          const multiLibraryResults = { "GO_Biological_Process_2025": resultsData };
+          await saveResultsToTSV(multiLibraryResults, outputFile, description);
+          const savedMessage = `\n💾 Complete results saved to: ${outputFile}`;
+          return {
+            content: [{
+              type: "text",
+              text: formattedResults + savedMessage
+            }]
+          };
+        } catch (error) {
+          const errorMessage = `\n❌ Error saving TSV file: ${error instanceof Error ? error.message : String(error)}`;
+          return {
+            content: [{
+              type: "text",
+              text: formattedResults + errorMessage
+            }]
+          };
+        }
+      }
       
       return {
         content: [{
