@@ -1,7 +1,7 @@
 <!--
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-03 16:25:27
+ * @LastEditTime: 2025-06-04 20:43:36
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -11,6 +11,10 @@
 </div>
 
 A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the [Enrichr](https://maayanlab.cloud/Enrichr/) API. This server supports multiple gene set libraries from Enrichr and returns only statistically significant results (p < 0.05) to reduce context usage.
+
+Use the button below to install the MCP server to Cursor with default settings (GO Biological Process only).
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=enrichr-mcp-server&config=eyJjb21tYW5kIjoibnB4IC15IGVucmljaHItbWNwLXNlcnZlciAtLWNvbXBhY3QgLS1tYXgtdGVybXMgMTAwIn0%3D)
 
 ## Features
 
