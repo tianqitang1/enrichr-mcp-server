@@ -1,7 +1,8 @@
 <!--
+ * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-04 20:43:36
+ * @LastEditTime: 2025-06-20 19:17:37
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -19,7 +20,7 @@ Use the button below to install the MCP server to Cursor with default settings (
 ## Features
 
 - **Multi-Library Enrichment Analysis**: Query multiple Enrichr libraries simultaneously (GO, pathways, diseases, tissues, drugs, etc.)
-- **GO Enrichment Analysis**: Specialized tools for GO Biological Process enrichment analysis
+- **GO Enrichment Analysis**: Specialized tool for GO Biological Process enrichment analysis with comprehensive LLM-friendly descriptions
 - **Comprehensive Library Support**: Access to hundreds of gene set libraries including:
   - Gene Ontology (Biological Process, Molecular Function, Cellular Component)
   - Pathway databases (KEGG, Reactome, WikiPathways, BioCarta, MSigDB)
@@ -94,6 +95,26 @@ Alternatively, use environment variables:
 
 ### Command Line Options
 
+All CLI options can be used when running the server directly or through npx:
+
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `--libraries <libs>` | `-l` | Comma-separated list of default Enrichr libraries | `GO_Biological_Process_2025` |
+| `--name <name>` | `-n` | Internal server name (for MCP protocol identification only) | `enrichr-server` |
+| `--max-terms <num>` | `-m` | Maximum terms to show per library | `10` |
+| `--format <format>` | `-f` | Output format: `detailed`, `compact`, `minimal` | `detailed` |
+| `--output <file>` | `-o` | Save complete results to TSV file | _(none)_ |
+| `--compact` | `-c` | Use compact format (same as `--format compact`) | _(flag)_ |
+| `--minimal` | | Use minimal format (same as `--format minimal`) | _(flag)_ |
+| `--help` | `-h` | Show help message | _(flag)_ |
+
+#### Format Options
+- **`detailed`**: Full details including p-values, odds ratios, and gene lists (default)
+- **`compact`**: Term name + p-value + gene count (saves ~50% context)
+- **`minimal`**: Just term name + p-value (saves ~80% context)
+
+#### Examples
+
 ```bash
 # Show help
 npx enrichr-mcp-server --help
@@ -104,14 +125,66 @@ npx enrichr-mcp-server --libraries "GO_Biological_Process_2025"
 # Use multiple libraries (comma-separated)  
 npx enrichr-mcp-server -l "GO_Biological_Process_2025,KEGG_2021_Human,MSigDB_Hallmark_2020"
 
-# Set custom server name
-npx enrichr-mcp-server --name "my-enrichr-server"
+# Set custom server name and max terms
+npx enrichr-mcp-server --name "my-enrichr-server" --max-terms 20
+
+# Use compact format with specific libraries
+npx enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
+
+# Use minimal format and save results to file
+npx enrichr-mcp-server --format minimal --max-terms 30 --output results.tsv
+
+# Combine multiple options
+npx enrichr-mcp-server --minimal --max-terms 50 --output /tmp/enrichr_results.tsv
 ```
 
 ### Environment Variables
 
-- `ENRICHR_DEFAULT_LIBRARIES`: Comma-separated list of default libraries
-- `ENRICHR_SERVER_NAME`: Custom server name
+Environment variables provide an alternative way to configure the server:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ENRICHR_DEFAULT_LIBRARIES` | Comma-separated list of default libraries | `GO_Biological_Process_2025,KEGG_2021_Human` |
+| `ENRICHR_SERVER_NAME` | Internal server name (for MCP protocol identification only) | `my-enrichr-server` |
+| `ENRICHR_MAX_TERMS` | Maximum terms per library | `20` |
+| `ENRICHR_FORMAT` | Output format (`detailed`/`compact`/`minimal`) | `compact` |
+| `ENRICHR_OUTPUT_FILE` | TSV output file path | `/tmp/enrichr_results.tsv` |
+
+#### Examples
+
+```bash
+# Run with environment variables
+ENRICHR_DEFAULT_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
+
+# Multiple environment variables
+ENRICHR_FORMAT=compact ENRICHR_MAX_TERMS=20 enrichr-mcp-server
+
+# Combine with CLI arguments (CLI takes precedence)
+ENRICHR_DEFAULT_LIBRARIES="KEGG_2021_Human" enrichr-mcp-server --libraries "GO_Biological_Process_2025"
+```
+
+**Note**: CLI arguments take precedence over environment variables when both are specified.
+
+**Important**: The `--name` option and `ENRICHR_SERVER_NAME` variable only affect the internal MCP protocol server identification. They do NOT change how you reference the server in your MCP client configuration (mcp.json). The server instance name in mcp.json is determined by the key you use in the `mcpServers` object.
+
+### Popular Libraries
+
+Here are some commonly used Enrichr libraries:
+
+| Library | Description |
+|---------|-------------|
+| `GO_Biological_Process_2025` | Gene Ontology Biological Processes |
+| `GO_Molecular_Function_2025` | Gene Ontology Molecular Functions |
+| `GO_Cellular_Component_2025` | Gene Ontology Cellular Components |
+| `KEGG_2021_Human` | KEGG Pathways |
+| `Reactome_2022` | Reactome Pathways |
+| `MSigDB_Hallmark_2020` | MSigDB Hallmark Gene Sets |
+| `Human_Phenotype_Ontology` | Human Phenotype Ontology |
+| `WikiPathways_2023_Human` | WikiPathways |
+| `ChEA_2022` | ChIP-seq Experiments |
+| `GTEx_Tissue_Sample_Gene_Expression_Profiles_up` | GTEx Tissue Expression |
+
+For a complete list of available libraries, visit the [Enrichr Libraries page](https://maayanlab.cloud/Enrichr/#libraries).
 
 ### Benefits of Default Library Configuration
 
@@ -122,7 +195,7 @@ npx enrichr-mcp-server --name "my-enrichr-server"
 
 ## Usage
 
-The server provides three tools:
+The server provides two tools:
 
 ### `enrichr_analysis` (Recommended for multi-library analysis)
 
@@ -159,28 +232,25 @@ Performs enrichment analysis across multiple specified Enrichr libraries.
 }
 ```
 
-### `query_enrichr_go_bp_tool`
+### `go_bp_enrichment` 
 
-Performs GO Biological Process enrichment analysis (legacy tool for backward compatibility).
+Performs Gene Ontology (GO) Biological Process enrichment analysis to understand biological functions and processes overrepresented in your gene list. Perfect for interpreting gene expression data, identifying significant biological processes, and uncovering functional implications of genes from RNA-seq, microarray, or other high-throughput experiments.
 
 **Parameters:**
 - `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"])
 - `description` (optional): Description for the gene list (default: "Gene list for GO BP enrichment")
+- `outputFile` (optional): Path to save complete results as TSV file
 
 **Example:**
 ```json
 {
-  "name": "query_enrichr_go_bp_tool",
+  "name": "go_bp_enrichment",
   "arguments": {
-    "genes": ["TP53", "BRCA1", "EGFR"],
-    "description": "Cancer-related genes"
+    "genes": ["TP53", "BRCA1", "EGFR", "MYC", "AKT1"],
+    "description": "Cancer-related genes for GO analysis"
   }
 }
 ```
-
-### `go_enrichment`
-
-Alternative name for `query_enrichr_go_bp_tool` with more intuitive naming.
 
 **Returns:**
 All tools return formatted text with significant terms including:
