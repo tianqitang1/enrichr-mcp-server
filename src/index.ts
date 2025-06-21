@@ -603,8 +603,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
-        name: "query_enrichr_go_bp_tool",
-        description: "Perform GO (Gene Ontology) enrichment analysis using Enrichr. Use this tool when you need to: analyze gene functions, test GO enrichment, find biological processes, perform functional enrichment, analyze gene sets, identify overrepresented pathways, run GO analysis, perform gene ontology analysis, test for enriched biological terms, or analyze gene list functionality. Returns only statistically significant terms (adjusted p < 0.05) to reduce context usage. Analyzes GO Biological Process 2025 database. For multi-library analysis, use enrichr_analysis instead.",
+        name: "go_bp_enrichment",
+        description: "Perform Gene Ontology (GO) Biological Process enrichment analysis to understand what biological functions and processes are overrepresented in your gene list. This tool helps researchers interpret gene expression data, identify statistically significant biological processes, and uncover functional implications of genes from RNA-seq, microarray, or other high-throughput experiments. Use this when you need to: analyze gene functions, find enriched biological processes, perform functional profiling of gene lists, understand molecular mechanisms, interpret differentially expressed genes (DEGs), discover key biological pathways, annotate gene lists functionally, characterize gene sets involved in specific phenotypes, connect genes to their biological roles, or investigate what your genes do. The tool performs over-representation analysis (ORA) using the Enrichr API and GO Biological Process 2025 database, returning only statistically significant terms (adjusted p-value < 0.05) to provide meaningful biological insights while managing context usage. Perfect for transcriptomics analysis, systems biology studies, drug target identification, biomarker discovery, and understanding disease mechanisms. For multi-library analysis across different databases (KEGG, Reactome, etc.), use enrichr_analysis instead.",
         inputSchema: {
           type: "object",
           properties: {
@@ -613,38 +613,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               items: {
                 type: "string"
               },
-              description: "List of gene symbols to analyze for GO enrichment (e.g., ['TP53', 'BRCA1', 'EGFR'])"
+              description: "List of gene symbols to analyze for GO BP enrichment (e.g., ['TP53', 'BRCA1', 'EGFR']). Can be from DEG analysis, candidate gene lists, or any gene set of interest."
             },
             description: {
               type: "string",
-              description: "Optional description for the gene list",
-              default: "Gene list for GO BP enrichment"
-            },
-            outputFile: {
-              type: "string",
-              description: "Optional path to save complete results as TSV file. If specified, ALL significant terms will be saved to this file, regardless of maxTerms limit.",
-              default: CONFIG.outputFile
-            }
-          },
-          required: ["genes"]
-        }
-      },
-      {
-        name: "go_enrichment", // Fallback tool name for more inclusive trigger words
-        description: "Test genes for GO enrichment, analyze gene functions, or find enriched biological processes. Simple tool for functional analysis of gene lists. Same as query_enrichr_go_bp_tool but with a more intuitive name. Uses adjusted p-value < 0.05 for significance. For multi-library analysis, use enrichr_analysis instead.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            genes: {
-              type: "array",
-              items: {
-                type: "string"
-              },
-              description: "List of gene symbols to test for enrichment (e.g., ['TP53', 'BRCA1', 'EGFR'])"
-            },
-            description: {
-              type: "string",
-              description: "Optional description for the gene list",
+              description: "Optional description for the gene list to help track analyses",
               default: "Gene list for GO BP enrichment"
             },
             outputFile: {
@@ -716,7 +689,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Save to TSV if output file is specified (either via CLI or tool parameter)
       if (outputFile) {
         try {
-          await saveResultsToTSV(resultsData, outputFile, description);
+          saveResultsToTSV(resultsData, outputFile, description);
           const savedMessage = `\n💾 Complete results saved to: ${outputFile}`;
           return {
             content: [{
@@ -743,8 +716,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    case "query_enrichr_go_bp_tool":
-    case "go_enrichment": {
+    case "go_bp_enrichment": {
       const genes = request.params.arguments?.genes as string[];
       const description = (request.params.arguments?.description as string) || "Gene list for GO BP enrichment";
       const outputFile = request.params.arguments?.outputFile as string || CONFIG.outputFile;
@@ -785,7 +757,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
           // Convert single result to multi-library format for TSV saving
           const multiLibraryResults = { "GO_Biological_Process_2025": resultsData };
-          await saveResultsToTSV(multiLibraryResults, outputFile, description);
+          saveResultsToTSV(multiLibraryResults, outputFile, description);
           const savedMessage = `\n💾 Complete results saved to: ${outputFile}`;
           return {
             content: [{
