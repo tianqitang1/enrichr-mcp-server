@@ -151,12 +151,15 @@ Popular Libraries:
 // Parse configuration at startup
 const CONFIG = parseConfig();
 
-console.error(`🧬 Enrichr MCP Server starting...`);
-console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
-console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
-console.error(`📝 Format: ${CONFIG.format}`);
-if (CONFIG.saveToFile) {
-  console.error(`💾 Output file: ${CONFIG.outputFile}`);
+// Only show startup messages when not running as MCP server (e.g., during --help)
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.error(`🧬 Enrichr MCP Server starting...`);
+  console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
+  console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
+  console.error(`📝 Format: ${CONFIG.format}`);
+  if (CONFIG.saveToFile) {
+    console.error(`💾 Output file: ${CONFIG.outputFile}`);
+  }
 }
 
 /**
