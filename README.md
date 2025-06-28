@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-20 19:17:37
+ * @LastEditTime: 2025-06-27 21:32:27
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -11,7 +11,7 @@
   <img src="icon.svg" alt="Enrichr MCP Server Icon" width="128" height="128">
 </div>
 
-A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the [Enrichr](https://maayanlab.cloud/Enrichr/) API. This server supports multiple gene set libraries from Enrichr and returns only statistically significant results (p < 0.05) to reduce context usage.
+A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the [Enrichr](https://maayanlab.cloud/Enrichr/) API. This server supports all available gene set libraries from Enrichr and returns only statistically significant results (corrected-$p$ < 0.05) for LLM tools to interpret.
 
 Use the button below to install the MCP server to Cursor with default settings (GO Biological Process only).
 
@@ -20,8 +20,7 @@ Use the button below to install the MCP server to Cursor with default settings (
 ## Features
 
 - **Multi-Library Enrichment Analysis**: Query multiple Enrichr libraries simultaneously (GO, pathways, diseases, tissues, drugs, etc.)
-- **GO Enrichment Analysis**: Specialized tool for GO Biological Process enrichment analysis with comprehensive LLM-friendly descriptions
-- **Comprehensive Library Support**: Access to hundreds of gene set libraries including:
+- **Comprehensive Library Support**: Access to hundreds of gene set libraries from Enrichr including:
   - Gene Ontology (Biological Process, Molecular Function, Cellular Component)
   - Pathway databases (KEGG, Reactome, WikiPathways, BioCarta, MSigDB)
   - Disease/Phenotype databases (Human Phenotype Ontology, GWAS Catalog)
@@ -29,9 +28,8 @@ Use the button below to install the MCP server to Cursor with default settings (
   - Drug/Chemical libraries (DrugMatrix, L1000, TG-GATEs)
   - Transcription Factor targets (ChEA, ENCODE)
   - MicroRNA targets (TargetScan, miRTarBase)
-- **Significance Filtering**: Returns only terms with adjusted p < 0.05 to reduce noise
-- **Detailed Results**: Provides p-values, z-scores, combined scores, and overlapping genes
-- **Error Handling**: Robust error handling with informative messages
+- **GO Enrichment Analysis**: Specialized tool for GO Biological Process enrichment analysis (I use this a lot, so I made it a tool)
+
 
 ## Configuration
 
@@ -100,7 +98,6 @@ All CLI options can be used when running the server directly or through npx:
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `--libraries <libs>` | `-l` | Comma-separated list of default Enrichr libraries | `GO_Biological_Process_2025` |
-| `--name <name>` | `-n` | Internal server name (for MCP protocol identification only) | `enrichr-server` |
 | `--max-terms <num>` | `-m` | Maximum terms to show per library | `10` |
 | `--format <format>` | `-f` | Output format: `detailed`, `compact`, `minimal` | `detailed` |
 | `--output <file>` | `-o` | Save complete results to TSV file | _(none)_ |
@@ -125,8 +122,8 @@ npx enrichr-mcp-server --libraries "GO_Biological_Process_2025"
 # Use multiple libraries (comma-separated)  
 npx enrichr-mcp-server -l "GO_Biological_Process_2025,KEGG_2021_Human,MSigDB_Hallmark_2020"
 
-# Set custom server name and max terms
-npx enrichr-mcp-server --name "my-enrichr-server" --max-terms 20
+# Set max terms
+npx enrichr-mcp-server --max-terms 20
 
 # Use compact format with specific libraries
 npx enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
@@ -145,7 +142,6 @@ Environment variables provide an alternative way to configure the server:
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `ENRICHR_DEFAULT_LIBRARIES` | Comma-separated list of default libraries | `GO_Biological_Process_2025,KEGG_2021_Human` |
-| `ENRICHR_SERVER_NAME` | Internal server name (for MCP protocol identification only) | `my-enrichr-server` |
 | `ENRICHR_MAX_TERMS` | Maximum terms per library | `20` |
 | `ENRICHR_FORMAT` | Output format (`detailed`/`compact`/`minimal`) | `compact` |
 | `ENRICHR_OUTPUT_FILE` | TSV output file path | `/tmp/enrichr_results.tsv` |
@@ -165,7 +161,6 @@ ENRICHR_DEFAULT_LIBRARIES="KEGG_2021_Human" enrichr-mcp-server --libraries "GO_B
 
 **Note**: CLI arguments take precedence over environment variables when both are specified.
 
-**Important**: The `--name` option and `ENRICHR_SERVER_NAME` variable only affect the internal MCP protocol server identification. They do NOT change how you reference the server in your MCP client configuration (mcp.json). The server instance name in mcp.json is determined by the key you use in the `mcpServers` object.
 
 ### Popular Libraries
 

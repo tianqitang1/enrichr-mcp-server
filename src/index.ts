@@ -27,8 +27,7 @@ function parseConfig() {
   const args = process.argv.slice(2);
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
-    serverName: "enrichr-server",
-    version: "0.1.6",
+    version: "0.1.8",
     maxTermsPerLibrary: 10, // Default to 10 terms per library
     format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
     saveToFile: false, // Default to not saving to file
@@ -44,12 +43,6 @@ function parseConfig() {
       if (librariesArg) {
         config.defaultLibraries = librariesArg.split(',').map(lib => lib.trim());
         i++; // Skip next argument since we consumed it
-      }
-    } else if (arg === '--name' || arg === '-n') {
-      const nameArg = args[i + 1];
-      if (nameArg) {
-        config.serverName = nameArg;
-        i++;
       }
     } else if (arg === '--max-terms' || arg === '-m') {
       const maxTermsArg = args[i + 1];
@@ -86,7 +79,6 @@ Usage: enrichr-mcp-server [options]
 Options:
   -l, --libraries <libs>    Comma-separated list of default Enrichr libraries
                            (default: GO_Biological_Process_2025)
-  -n, --name <name>        Server name (default: enrichr-server)
   -m, --max-terms <num>    Maximum terms to show per library (default: 10)
   -f, --format <format>    Output format: detailed, compact, minimal (default: detailed)
   -o, --output <file>      Save complete results to TSV file
@@ -101,7 +93,6 @@ Format Options:
 
 Environment Variables:
   ENRICHR_DEFAULT_LIBRARIES  Comma-separated list of default libraries
-  ENRICHR_SERVER_NAME        Server name
   ENRICHR_MAX_TERMS          Maximum terms per library
   ENRICHR_FORMAT             Output format (detailed/compact/minimal)
   ENRICHR_OUTPUT_FILE        TSV output file path
@@ -133,10 +124,6 @@ Popular Libraries:
   if (process.env.ENRICHR_DEFAULT_LIBRARIES) {
     config.defaultLibraries = process.env.ENRICHR_DEFAULT_LIBRARIES.split(',').map(lib => lib.trim());
   }
-  
-  if (process.env.ENRICHR_SERVER_NAME) {
-    config.serverName = process.env.ENRICHR_SERVER_NAME;
-  }
 
   if (process.env.ENRICHR_MAX_TERMS) {
     const maxTerms = parseInt(process.env.ENRICHR_MAX_TERMS);
@@ -165,7 +152,6 @@ const CONFIG = parseConfig();
 
 console.error(`🧬 Enrichr MCP Server starting...`);
 console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
-console.error(`🏷️  Server name: ${CONFIG.serverName}`);
 console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
 console.error(`📝 Format: ${CONFIG.format}`);
 if (CONFIG.saveToFile) {
@@ -537,7 +523,7 @@ function saveResultsToTSV(
  */
 const server = new Server(
   {
-    name: CONFIG.serverName,
+    name: "enrichr-server",
     version: CONFIG.version,
   },
   {
