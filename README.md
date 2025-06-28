@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-27 21:32:27
+ * @LastEditTime: 2025-06-28 00:35:06
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -49,9 +49,9 @@ Add this server to your MCP client configuration (e.g., `.cursor/mcp.json`):
 }
 ```
 
-#### Custom Default Libraries Configuration
+#### Custom Available Libraries Configuration
 
-You can configure default libraries using CLI arguments in your MCP configuration:
+You can configure available libraries using CLI arguments in your MCP configuration:
 
 ```json
 {
@@ -72,32 +72,13 @@ You can configure default libraries using CLI arguments in your MCP configuratio
 }
 ```
 
-#### Environment Variables Configuration
-
-Alternatively, use environment variables:
-
-```json
-{
-  "mcpServers": {
-    "enrichr-server": {
-      "command": "npx",
-      "args": ["-y", "enrichr-mcp-server"],
-      "env": {
-        "ENRICHR_DEFAULT_LIBRARIES": "GO_Biological_Process_2025,KEGG_2021_Human",
-        "ENRICHR_SERVER_NAME": "my-enrichr-server"
-      }
-    }
-  }
-}
-```
-
 ### Command Line Options
 
 All CLI options can be used when running the server directly or through npx:
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
-| `--libraries <libs>` | `-l` | Comma-separated list of default Enrichr libraries | `GO_Biological_Process_2025` |
+| `--libraries <libs>` | `-l` | Comma-separated list of Enrichr libraries to query | `GO_Biological_Process_2025` |
 | `--max-terms <num>` | `-m` | Maximum terms to show per library | `10` |
 | `--format <format>` | `-f` | Output format: `detailed`, `compact`, `minimal` | `detailed` |
 | `--output <file>` | `-o` | Save complete results to TSV file | _(none)_ |
@@ -107,8 +88,8 @@ All CLI options can be used when running the server directly or through npx:
 
 #### Format Options
 - **`detailed`**: Full details including p-values, odds ratios, and gene lists (default)
-- **`compact`**: Term name + p-value + gene count (saves ~50% context)
-- **`minimal`**: Just term name + p-value (saves ~80% context)
+- **`compact`**: Term name + p-value + gene count (saves ~50% tokens)
+- **`minimal`**: Just term name + p-value (saves ~80% tokens)
 
 #### Examples
 
@@ -141,7 +122,7 @@ Environment variables provide an alternative way to configure the server:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `ENRICHR_DEFAULT_LIBRARIES` | Comma-separated list of default libraries | `GO_Biological_Process_2025,KEGG_2021_Human` |
+| `ENRICHR_LIBRARIES` | Comma-separated list of libraries to query | `GO_Biological_Process_2025,KEGG_2021_Human` |
 | `ENRICHR_MAX_TERMS` | Maximum terms per library | `20` |
 | `ENRICHR_FORMAT` | Output format (`detailed`/`compact`/`minimal`) | `compact` |
 | `ENRICHR_OUTPUT_FILE` | TSV output file path | `/tmp/enrichr_results.tsv` |
@@ -150,13 +131,13 @@ Environment variables provide an alternative way to configure the server:
 
 ```bash
 # Run with environment variables
-ENRICHR_DEFAULT_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
+ENRICHR_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
 
 # Multiple environment variables
 ENRICHR_FORMAT=compact ENRICHR_MAX_TERMS=20 enrichr-mcp-server
 
 # Combine with CLI arguments (CLI takes precedence)
-ENRICHR_DEFAULT_LIBRARIES="KEGG_2021_Human" enrichr-mcp-server --libraries "GO_Biological_Process_2025"
+ENRICHR_LIBRARIES="KEGG_2021_Human" enrichr-mcp-server --libraries "GO_Biological_Process_2025"
 ```
 
 **Note**: CLI arguments take precedence over environment variables when both are specified.
@@ -181,10 +162,10 @@ Here are some commonly used Enrichr libraries:
 
 For a complete list of available libraries, visit the [Enrichr Libraries page](https://maayanlab.cloud/Enrichr/#libraries).
 
-### Benefits of Default Library Configuration
+### Benefits of Library Configuration
 
-1. **Simplified Tool Calls**: When libraries aren't specified in tool calls, your configured defaults are used
-2. **Consistent Results**: Ensures consistent library usage across different queries
+1. **Simplified Tool Calls**: When libraries aren't specified in tool calls, your configured libraries are used
+2. **Consistent Results**: Ensures consistent library usage across different queries  
 3. **Multiple Configurations**: Set up different MCP server instances for different research contexts
 4. **Override Capability**: Individual tool calls can still specify different libraries when needed
 
@@ -198,7 +179,7 @@ Performs enrichment analysis across multiple specified Enrichr libraries.
 
 **Parameters:**
 - `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"])
-- `libraries` (optional): Array of Enrichr library names to query (defaults to ["GO_Biological_Process_2025"])
+- `libraries` (optional): Array of Enrichr library names to query (defaults to configured libraries)
 - `description` (optional): Description for the gene list (default: "Gene list for enrichment analysis")
 
 **Popular Libraries:**
