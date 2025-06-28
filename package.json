@@ -1,11 +1,11 @@
 {
   "name": "enrichr-mcp-server",
-  "version": "0.1.6",
+  "version": "0.1.9",
   "description": "MCP Server for Enrichr gene set enrichment analysis with multi-library support",
   "type": "module",
   "main": "./build/index.js",
   "bin": {
-    "enrichr-mcp-server": "./build/index.js"
+    "enrichr-mcp-server": "build/index.js"
   },
   "files": [
     "build",
@@ -31,7 +31,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tianqitang1/enrichr-mcp-server.git"
+    "url": "git+https://github.com/tianqitang1/enrichr-mcp-server.git"
   },
   "homepage": "https://github.com/tianqitang1/enrichr-mcp-server#readme",
   "bugs": {
