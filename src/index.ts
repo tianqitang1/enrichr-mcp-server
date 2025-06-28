@@ -17,6 +17,7 @@ import fetch from "node-fetch";
 import { FormData } from "node-fetch";
 import { writeFileSync } from "fs";
 import { join } from "path";
+import { libraryDescriptions } from "./library_descriptions.js";
 
 const ENRICHR_URL = "https://maayanlab.cloud/Enrichr";
 
@@ -538,11 +539,36 @@ const server = new Server(
  * Exposes enrichment analysis tools with multi-library support.
  */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  // Dynamically generate the description for the enrichr_analysis tool
+  const baseDescription = `Perform gene set enrichment analysis using Enrichr with support for multiple gene set libraries.
+  Use this tool when you need to:
+  - analyze gene functions
+  - test enrichment across different databases
+  - find biological processes/pathways/diseases
+  - perform functional enrichment
+  - analyze gene sets
+  - identify overrepresented terms
+  - run enrichment analysis
+  - perform gene ontology analysis
+  - test for enriched biological terms
+  - analyze gene list functionality across multiple databases.
+  Returns only statistically significant terms (adjusted p < 0.05) to reduce context usage. 
+  Supports GO, pathways, disease, tissue, drug, and many other gene set libraries available in Enrichr.`;
+
+  const configuredLibrariesDescription = CONFIG.defaultLibraries.map(lib => 
+    `  - ${lib}: ${libraryDescriptions[lib] || 'Custom library or no description available.'}`
+  ).join('\n');
+
+  const dynamicDescription = `${baseDescription}\n\nThis server is configured with the following default libraries:\n${configuredLibrariesDescription}\n\nThe model should select the most relevant library/libraries from the list below based on the user's query.`;
+
+  // Generate a list of all available libraries for the parameter description
+  const allAvailableLibraries = Object.keys(libraryDescriptions).map(lib => `'${lib}'`).join(', ');
+
   return {
     tools: [
       {
         name: "enrichr_analysis",
-        description: "Perform gene set enrichment analysis using Enrichr with support for multiple gene set libraries. Use this tool when you need to: analyze gene functions, test enrichment across different databases, find biological processes/pathways/diseases, perform functional enrichment, analyze gene sets, identify overrepresented terms, run enrichment analysis, perform gene ontology analysis, test for enriched biological terms, or analyze gene list functionality across multiple databases. Returns only statistically significant terms (adjusted p < 0.05) to reduce context usage. Supports GO, pathways, disease, tissue, drug, and many other gene set libraries available in Enrichr.",
+        description: dynamicDescription,
         inputSchema: {
           type: "object",
           properties: {
@@ -558,7 +584,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               items: {
                 type: "string"
               },
-              description: "List of Enrichr libraries to use for analysis. Common options include: 'GO_Biological_Process_2025', 'GO_Molecular_Function_2025', 'GO_Cellular_Component_2025', 'KEGG_2021_Human', 'Reactome_2022', 'WikiPathways_2023_Human', 'MSigDB_Hallmark_2020', 'Human_Phenotype_Ontology', 'GWAS_Catalog_2023', 'ChEA_2022', 'ENCODE_TF_ChIP-seq_2015', 'TargetScan_microRNA_2017'. Defaults to configured default libraries if not specified.",
+              description: `List of Enrichr libraries to use for analysis. If not specified, the configured defaults will be used. Available options include: ${allAvailableLibraries}.`,
               default: CONFIG.defaultLibraries
             },
             description: {
