@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-29 06:33:21
+ * @LastEditTime: 2025-06-29 06:36:31
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -49,8 +49,8 @@ claude mcp add enrichr-mcp-server -- npx -y enrichr-mcp-server
 
 Add this server to your MCP client configuration (e.g., `.cursor/mcp.json`):
 
-#### Basic Configuration (GO Biological Process only)
-With the default configuration the server will query the GO_Biological_Process_2025 library only.
+#### Basic Configuration (Popular Libraries by Default)
+With the default configuration the server will query a curated list of popular libraries.
 ```json
 {
   "mcpServers": {
@@ -91,7 +91,7 @@ Adjust the CLI options to your needs, unreasonable settings might exceed the con
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
-| `--libraries <libs>` | `-l` | Comma-separated list of Enrichr libraries to query | `GO_Biological_Process_2025` |
+| `--libraries <libs>` | `-l` | Comma-separated list of Enrichr libraries to query | `pop` |
 | `--max-terms <num>` | `-m` | Maximum terms to show per library | `50` |
 | `--format <format>` | `-f` | Output format: `detailed`, `compact`, `minimal` | `detailed` |
 | `--output <file>` | `-o` | Save complete results to TSV file | _(none)_ |

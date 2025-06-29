@@ -40,8 +40,8 @@ const POPULAR_LIBRARIES = [
 function parseConfig() {
   const args = process.argv.slice(2);
   const config = {
-    defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
-    version: "0.2.0",
+    defaultLibraries: POPULAR_LIBRARIES, // Default fallback
+    version: "0.2.1",
     maxTermsPerLibrary: 50, // Default to 50 terms per library
     format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
     saveToFile: false, // Default to not saving to file
@@ -97,7 +97,7 @@ Usage: enrichr-mcp-server [options]
 Options:
   -l, --libraries <libs>    Comma-separated list of default Enrichr libraries.
                            Use "pop" for a curated list of popular libraries.
-                           (default: GO_Biological_Process_2025)
+                           (default: pop)
   -m, --max-terms <num>    Maximum terms to show per library (default: 50)
   -f, --format <format>    Output format: detailed, compact, minimal (default: detailed)
   -o, --output <file>      Save complete results to TSV file
