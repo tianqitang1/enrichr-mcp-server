@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-29 06:36:31
+ * @LastEditTime: 2025-06-29 06:46:59
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -20,8 +20,8 @@ For Claude Desktop, please download the [Desktop Extension](https://github.com/t
 Use the button below to install the MCP server to Cursor, VS Code, or VS Code Insiders with default settings.
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=enrichr-mcp-server&config=eyJjb21tYW5kIjoibnB4IC15IGVucmljaHItbWNwLXNlcnZlciAtLWNvbXBhY3QgLS1tYXgtdGVybXMgMTAwIn0%3D)
-[![Add to VS Code](https://img.shields.io/badge/Add_to_VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22enrichr-mcp-server%22%2C%22--compact%22%2C%22--max-terms%22%2C%22100%22%5D%7D)
-[![Add to VS Code Insiders](https://img.shields.io/badge/Add_to_VS_Code_Insiders-24bfa5?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode-insiders:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22enrichr-mcp-server%22%2C%22--compact%22%2C%22--max-terms%22%2C%22100%22%5D%7D)
+[![Add to VS Code](https://img.shields.io/badge/Add_to_VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%20-y%20enrichr-mcp-server%20--compact%20--max-terms%20100%22%7D)
+[![Add to VS Code Insiders](https://img.shields.io/badge/Add_to_VS_Code_Insiders-24bfa5?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode-insiders:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%20-y%20enrichr-mcp-server%20--compact%20--max-terms%20100%22%7D)
 
 
 For Claude Code, use the following command:
