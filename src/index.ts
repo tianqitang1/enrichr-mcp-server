@@ -42,7 +42,7 @@ function parseConfig() {
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
     version: "0.1.8",
-    maxTermsPerLibrary: 10, // Default to 10 terms per library
+    maxTermsPerLibrary: 50, // Default to 50 terms per library
     format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
     saveToFile: false, // Default to not saving to file
     outputFile: "" // Default output file path
@@ -98,7 +98,7 @@ Options:
   -l, --libraries <libs>    Comma-separated list of default Enrichr libraries.
                            Use "pop" for a curated list of popular libraries.
                            (default: GO_Biological_Process_2025)
-  -m, --max-terms <num>    Maximum terms to show per library (default: 10)
+  -m, --max-terms <num>    Maximum terms to show per library (default: 50)
   -f, --format <format>    Output format: detailed, compact, minimal (default: detailed)
   -o, --output <file>      Save complete results to TSV file
   -c, --compact            Use compact format (same as --format compact)
@@ -111,7 +111,7 @@ Format Options:
   minimal    - Just term name + p-value (saves ~80% context)
 
 Environment Variables:
-  ENRICHR_DEFAULT_LIBRARIES  Comma-separated list of default libraries
+  ENRICHR_LIBRARIES          Comma-separated list of default libraries
   ENRICHR_MAX_TERMS          Maximum terms per library
   ENRICHR_FORMAT             Output format (detailed/compact/minimal)
   ENRICHR_OUTPUT_FILE        TSV output file path
@@ -122,7 +122,7 @@ Examples:
   enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
   enrichr-mcp-server --format minimal --max-terms 30 --output results.tsv
   enrichr-mcp-server --minimal --max-terms 50 --output /tmp/enrichr_results.tsv
-  ENRICHR_DEFAULT_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
+  ENRICHR_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
 
 Popular Libraries:
   GO_Biological_Process_2025      - Gene Ontology Biological Processes
@@ -141,8 +141,8 @@ Popular Libraries:
   }
 
   // Override with environment variables if set
-  if (process.env.ENRICHR_DEFAULT_LIBRARIES) {
-    config.defaultLibraries = process.env.ENRICHR_DEFAULT_LIBRARIES.split(',').map(lib => lib.trim());
+  if (process.env.ENRICHR_LIBRARIES) {
+    config.defaultLibraries = process.env.ENRICHR_LIBRARIES.split(',').map(lib => lib.trim());
   }
 
   if (process.env.ENRICHR_MAX_TERMS) {

@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-29 02:14:44
+ * @LastEditTime: 2025-06-29 02:45:11
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -103,7 +103,7 @@ npx enrichr-mcp-server --help
 
 ### Environment Variables
 
-Configuration can also be provided via environment variables:
+You can also configure the server via environment variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -117,20 +117,20 @@ Configuration can also be provided via environment variables:
 
 ### Popular Libraries
 
-Here are some commonly used Enrichr libraries:
+This table lists the libraries included when using the `-l pop` flag.
 
 | Library | Description |
 |---------|-------------|
-| `GO_Biological_Process_2025` | Gene Ontology Biological Processes |
-| `GO_Molecular_Function_2025` | Gene Ontology Molecular Functions |
-| `GO_Cellular_Component_2025` | Gene Ontology Cellular Components |
-| `KEGG_2021_Human` | KEGG Pathways |
-| `Reactome_2022` | Reactome Pathways |
-| `MSigDB_Hallmark_2020` | MSigDB Hallmark Gene Sets |
-| `Human_Phenotype_Ontology` | Human Phenotype Ontology |
-| `WikiPathways_2023_Human` | WikiPathways |
-| `ChEA_2022` | ChIP-seq Experiments |
-| `GTEx_Tissue_Sample_Gene_Expression_Profiles_up` | GTEx Tissue Expression |
+| `GO_Biological_Process_2025` | Gene Ontology terms describing biological objectives accomplished by gene products. |
+| `KEGG_2021_Human` | Metabolic and signaling pathways from Kyoto Encyclopedia of Genes and Genomes for human. |
+| `Reactome_2022` | Curated and peer-reviewed pathways from Reactome covering signaling, metabolism, gene expression, and disease. |
+| `MSigDB_Hallmark_2020` | Hallmark gene sets representing well-defined biological states and processes from MSigDB. |
+| `ChEA_2022` | ChIP-seq experiments from GEO, ENCODE, and publications identifying transcription factor-gene interactions from human and mouse. |
+| `GWAS_Catalog_2023` | Genome-wide association study results from NHGRI-EBI GWAS Catalog linking genes to traits. |
+| `Human_Phenotype_Ontology` | Standardized vocabulary of phenotypic abnormalities associated with human diseases. |
+| `STRING_Interactions_2023` | Protein interactions from STRING database including experimental and predicted. |
+| `DrugBank_2022` | Drug targets from DrugBank including approved drugs and experimental compounds. |
+| `CellMarker_2024` | Manually curated cell type markers from CellMarker database for human and mouse. |
 
 For a complete list of available libraries, visit the [Enrichr Libraries page](https://maayanlab.cloud/Enrichr/#libraries).
 
@@ -153,32 +153,9 @@ Performs enrichment analysis across multiple specified Enrichr libraries.
 - `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"])
 - `libraries` (optional): Array of Enrichr library names to query (defaults to configured libraries)
 - `description` (optional): Description for the gene list (default: "Gene list for enrichment analysis")
-
-**Popular Libraries:**
-- **Gene Ontology**: `GO_Biological_Process_2025`, `GO_Molecular_Function_2025`, `GO_Cellular_Component_2025`
-- **Pathways**: `KEGG_2021_Human`, `Reactome_2022`, `WikiPathways_2023_Human`, `MSigDB_Hallmark_2020`
-- **Disease/Phenotype**: `Human_Phenotype_Ontology`, `GWAS_Catalog_2023`, `ClinVar_2019`
-- **Tissue/Cell Types**: `GTEx_Tissue_Sample_Gene_Expression_Profiles_up`, `Human_Gene_Atlas`, `ARCHS4_Tissues`
-- **Transcription Factors**: `ChEA_2022`, `ENCODE_TF_ChIP-seq_2015`, `TRANSFAC_and_JASPAR_PWMs`
-- **MicroRNA**: `TargetScan_microRNA_2017`, `miRTarBase_2017`
-- **Drugs**: `DrugMatrix`, `L1000_Kinase_and_GPCR_Perturbations_up`, `TG_GATEs_2019`
-
-**Example:**
-```json
-{
-  "name": "enrichr_analysis",
-  "arguments": {
-    "genes": ["TP53", "BRCA1", "EGFR", "MYC", "AKT1"],
-    "libraries": [
-      "GO_Biological_Process_2025",
-      "KEGG_2021_Human", 
-      "MSigDB_Hallmark_2020",
-      "Human_Phenotype_Ontology"
-    ],
-    "description": "Cancer-related genes"
-  }
-}
-```
+- `maxTerms` (optional): Maximum number of terms to show per library (default: 50)
+- `format` (optional): Output format: `detailed`, `compact`, `minimal` (default: `detailed`)
+- `outputFile` (optional): Path to save complete results as TSV file
 
 ### `go_bp_enrichment` 
 
@@ -188,17 +165,6 @@ Performs Gene Ontology (GO) Biological Process enrichment analysis to understand
 - `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"])
 - `description` (optional): Description for the gene list (default: "Gene list for GO BP enrichment")
 - `outputFile` (optional): Path to save complete results as TSV file
-
-**Example:**
-```json
-{
-  "name": "go_bp_enrichment",
-  "arguments": {
-    "genes": ["TP53", "BRCA1", "EGFR", "MYC", "AKT1"],
-    "description": "Cancer-related genes for GO analysis"
-  }
-}
-```
 
 **Returns:**
 All tools return formatted text with significant terms including:
