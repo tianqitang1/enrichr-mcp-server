@@ -21,6 +21,19 @@ import { libraryDescriptions } from "./library_descriptions.js";
 
 const ENRICHR_URL = "https://maayanlab.cloud/Enrichr";
 
+const POPULAR_LIBRARIES = [
+  "GO_Biological_Process_2025",
+  "KEGG_2021_Human",
+  "Reactome_2022",
+  "MSigDB_Hallmark_2020",
+  "ChEA_2022",
+  "GWAS_Catalog_2023",
+  "Human_Phenotype_Ontology",
+  "STRING_Interactions_2023",
+  "DrugBank_2022",
+  "CellMarker_2024"
+];
+
 /**
  * Parse command line arguments and environment variables for configuration
  */
@@ -28,7 +41,7 @@ function parseConfig() {
   const args = process.argv.slice(2);
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
-    version: "0.1.9",
+    version: "0.1.8",
     maxTermsPerLibrary: 10, // Default to 10 terms per library
     format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
     saveToFile: false, // Default to not saving to file
@@ -42,7 +55,11 @@ function parseConfig() {
     if (arg === '--libraries' || arg === '-l') {
       const librariesArg = args[i + 1];
       if (librariesArg) {
-        config.defaultLibraries = librariesArg.split(',').map(lib => lib.trim());
+        if (librariesArg.toLowerCase() === 'pop') {
+          config.defaultLibraries = POPULAR_LIBRARIES;
+        } else {
+          config.defaultLibraries = librariesArg.split(',').map(lib => lib.trim());
+        }
         i++; // Skip next argument since we consumed it
       }
     } else if (arg === '--max-terms' || arg === '-m') {
@@ -78,7 +95,8 @@ Enrichr MCP Server
 Usage: enrichr-mcp-server [options]
 
 Options:
-  -l, --libraries <libs>    Comma-separated list of Enrichr libraries to query
+  -l, --libraries <libs>    Comma-separated list of default Enrichr libraries.
+                           Use "pop" for a curated list of popular libraries.
                            (default: GO_Biological_Process_2025)
   -m, --max-terms <num>    Maximum terms to show per library (default: 10)
   -f, --format <format>    Output format: detailed, compact, minimal (default: detailed)
@@ -93,17 +111,18 @@ Format Options:
   minimal    - Just term name + p-value (saves ~80% context)
 
 Environment Variables:
-  ENRICHR_LIBRARIES          Comma-separated list of libraries to query
+  ENRICHR_DEFAULT_LIBRARIES  Comma-separated list of default libraries
   ENRICHR_MAX_TERMS          Maximum terms per library
   ENRICHR_FORMAT             Output format (detailed/compact/minimal)
   ENRICHR_OUTPUT_FILE        TSV output file path
 
 Examples:
   enrichr-mcp-server --libraries "GO_Biological_Process_2025,KEGG_2021_Human"
+  enrichr-mcp-server -l pop
   enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
   enrichr-mcp-server --format minimal --max-terms 30 --output results.tsv
   enrichr-mcp-server --minimal --max-terms 50 --output /tmp/enrichr_results.tsv
-  ENRICHR_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
+  ENRICHR_DEFAULT_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
 
 Popular Libraries:
   GO_Biological_Process_2025      - Gene Ontology Biological Processes
@@ -122,8 +141,8 @@ Popular Libraries:
   }
 
   // Override with environment variables if set
-  if (process.env.ENRICHR_LIBRARIES) {
-    config.defaultLibraries = process.env.ENRICHR_LIBRARIES.split(',').map(lib => lib.trim());
+  if (process.env.ENRICHR_DEFAULT_LIBRARIES) {
+    config.defaultLibraries = process.env.ENRICHR_DEFAULT_LIBRARIES.split(',').map(lib => lib.trim());
   }
 
   if (process.env.ENRICHR_MAX_TERMS) {
@@ -151,15 +170,12 @@ Popular Libraries:
 // Parse configuration at startup
 const CONFIG = parseConfig();
 
-// Only show startup messages when not running as MCP server (e.g., during --help)
-if (process.argv.includes('--help') || process.argv.includes('-h')) {
-  console.error(`🧬 Enrichr MCP Server starting...`);
-  console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
-  console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
-  console.error(`📝 Format: ${CONFIG.format}`);
-  if (CONFIG.saveToFile) {
-    console.error(`💾 Output file: ${CONFIG.outputFile}`);
-  }
+console.error(`🧬 Enrichr MCP Server starting...`);
+console.error(`📚 Default libraries: ${CONFIG.defaultLibraries.join(', ')}`);
+console.error(`📊 Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
+console.error(`📝 Format: ${CONFIG.format}`);
+if (CONFIG.saveToFile) {
+  console.error(`💾 Output file: ${CONFIG.outputFile}`);
 }
 
 /**
@@ -562,7 +578,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     `  - ${lib}: ${libraryDescriptions[lib] || 'Custom library or no description available.'}`
   ).join('\n');
 
-  const dynamicDescription = `${baseDescription}\n\nThis server is configured to query the following libraries:\n${configuredLibrariesDescription}\n\nWhen libraries parameter is not specified, these configured libraries will be used.`;
+  const dynamicDescription = `${baseDescription}\n\nThis server is configured with the following default libraries:\n${configuredLibrariesDescription}\n\nThe model should select the most relevant library/libraries from the list below based on the user's query.`;
 
   // Generate a list of all available libraries for the parameter description
   const allAvailableLibraries = Object.keys(libraryDescriptions).map(lib => `'${lib}'`).join(', ');
@@ -587,7 +603,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               items: {
                 type: "string"
               },
-              description: `List of Enrichr libraries to use for analysis. If not specified, the configured libraries will be used: ${CONFIG.defaultLibraries.join(', ')}. Available options include: ${allAvailableLibraries}.`,
+              description: `List of Enrichr libraries to use for analysis. If not specified, the configured defaults will be used. Available options include: ${allAvailableLibraries}.`,
               default: CONFIG.defaultLibraries
             },
             description: {

@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-28 00:35:06
+ * @LastEditTime: 2025-06-29 02:14:44
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -38,6 +38,7 @@ Use the button below to install the MCP server to Cursor with default settings (
 Add this server to your MCP client configuration (e.g., `.cursor/mcp.json`):
 
 #### Basic Configuration (GO Biological Process only)
+With the default configuration the server will query the GO_Biological_Process_2025 library only.
 ```json
 {
   "mcpServers": {
@@ -51,15 +52,15 @@ Add this server to your MCP client configuration (e.g., `.cursor/mcp.json`):
 
 #### Custom Available Libraries Configuration
 
-You can configure available libraries using CLI arguments in your MCP configuration:
+You can configure libraries that are available for the LLM to use using CLI arguments in your MCP configuration:
 
 ```json
 {
   "mcpServers": {
-    "enrichr-go-only": {
+    "enrichr-popular": {
       "command": "npx", 
-      "args": ["-y", "enrichr-mcp-server", "--libraries", "GO_Biological_Process_2025"]
-    },
+      "args": ["-y", "enrichr-mcp-server", "--libraries", "pop"]
+    }, // This will make the most popular libraries available to the LLM, namely GO_Biological_Process_2025, KEGG_2021_Human, Reactome_2022, MSigDB_Hallmark_2020, ChEA_2022, GWAS_Catalog_2023, Human_Phenotype_Ontology, STRING_Interactions_2023, DrugBank_2022, CellMarker_2024
     "enrichr-pathways": {
       "command": "npx",
       "args": ["-y", "enrichr-mcp-server", "-l", "GO_Biological_Process_2025,KEGG_2021_Human,Reactome_2022"]
@@ -74,12 +75,12 @@ You can configure available libraries using CLI arguments in your MCP configurat
 
 ### Command Line Options
 
-All CLI options can be used when running the server directly or through npx:
+Adjust the CLI options to your needs, unreasonable settings might exceed the context window of the LLM and confuse it, so choose wisely:
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `--libraries <libs>` | `-l` | Comma-separated list of Enrichr libraries to query | `GO_Biological_Process_2025` |
-| `--max-terms <num>` | `-m` | Maximum terms to show per library | `10` |
+| `--max-terms <num>` | `-m` | Maximum terms to show per library | `50` |
 | `--format <format>` | `-f` | Output format: `detailed`, `compact`, `minimal` | `detailed` |
 | `--output <file>` | `-o` | Save complete results to TSV file | _(none)_ |
 | `--compact` | `-c` | Use compact format (same as `--format compact`) | _(flag)_ |
@@ -93,32 +94,16 @@ All CLI options can be used when running the server directly or through npx:
 
 #### Examples
 
+For a full list of commands, options, and usage examples, run the server with the `--help` flag. This is the most up-to-date source of information.
+
 ```bash
-# Show help
+# Show the help message
 npx enrichr-mcp-server --help
-
-# Use only GO Biological Process
-npx enrichr-mcp-server --libraries "GO_Biological_Process_2025"
-
-# Use multiple libraries (comma-separated)  
-npx enrichr-mcp-server -l "GO_Biological_Process_2025,KEGG_2021_Human,MSigDB_Hallmark_2020"
-
-# Set max terms
-npx enrichr-mcp-server --max-terms 20
-
-# Use compact format with specific libraries
-npx enrichr-mcp-server -l "MSigDB_Hallmark_2020" --max-terms 20 --compact
-
-# Use minimal format and save results to file
-npx enrichr-mcp-server --format minimal --max-terms 30 --output results.tsv
-
-# Combine multiple options
-npx enrichr-mcp-server --minimal --max-terms 50 --output /tmp/enrichr_results.tsv
 ```
 
 ### Environment Variables
 
-Environment variables provide an alternative way to configure the server:
+Configuration can also be provided via environment variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -126,19 +111,6 @@ Environment variables provide an alternative way to configure the server:
 | `ENRICHR_MAX_TERMS` | Maximum terms per library | `20` |
 | `ENRICHR_FORMAT` | Output format (`detailed`/`compact`/`minimal`) | `compact` |
 | `ENRICHR_OUTPUT_FILE` | TSV output file path | `/tmp/enrichr_results.tsv` |
-
-#### Examples
-
-```bash
-# Run with environment variables
-ENRICHR_LIBRARIES="GO_Biological_Process_2025,Reactome_2022" enrichr-mcp-server
-
-# Multiple environment variables
-ENRICHR_FORMAT=compact ENRICHR_MAX_TERMS=20 enrichr-mcp-server
-
-# Combine with CLI arguments (CLI takes precedence)
-ENRICHR_LIBRARIES="KEGG_2021_Human" enrichr-mcp-server --libraries "GO_Biological_Process_2025"
-```
 
 **Note**: CLI arguments take precedence over environment variables when both are specified.
 
