@@ -20,8 +20,8 @@ For Claude Desktop, please download the [Desktop Extension](https://github.com/t
 Use the button below to install the MCP server to Cursor, VS Code, or VS Code Insiders with default settings.
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=enrichr-mcp-server&config=eyJjb21tYW5kIjoibnB4IC15IGVucmljaHItbWNwLXNlcnZlciAtLWNvbXBhY3QgLS1tYXgtdGVybXMgMTAwIn0%3D)
-[![Add to VS Code](https://img.shields.io/badge/Add_to_VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%20-y%20enrichr-mcp-server%20--compact%20--max-terms%20100%22%7D)
-[![Add to VS Code Insiders](https://img.shields.io/badge/Add_to_VS_Code_Insiders-24bfa5?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode-insiders:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%20-y%20enrichr-mcp-server%20--compact%20--max-terms%20100%22%7D)
+[![Add to VS Code](https://img.shields.io/badge/Add_to_VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect?url=vscode%3Amcp/install%3F%257B%2522name%2522%253A%2522enrichr-mcp-server%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522enrichr-mcp-server%2522%252C%2522--compact%2522%252C%2522--max-terms%2522%252C%2522100%2522%255D%257D)
+[![Add to VS Code Insiders](https://img.shields.io/badge/Add_to_VS_Code_Insiders-24bfa5?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect?url=vscode-insiders%3Amcp/install%3F%257B%2522name%2522%253A%2522enrichr-mcp-server%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522enrichr-mcp-server%2522%252C%2522--compact%2522%252C%2522--max-terms%2522%252C%2522100%2522%255D%257D)
 
 
 For Claude Code, use the following command:
