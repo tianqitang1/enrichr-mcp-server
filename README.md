@@ -2,7 +2,7 @@
  * @Author: tianqitang1 Tianqi.Tang@ucsf.edu
  * @Date: 2025-06-03 14:18:58
  * @LastEditors: tianqitang1 Tianqi.Tang@ucsf.edu
- * @LastEditTime: 2025-06-29 02:45:11
+ * @LastEditTime: 2025-06-29 06:33:21
  * @FilePath: /enrichr-mcp-server/README.md
 -->
 # Enrichr MCP Server
@@ -13,9 +13,21 @@
 
 A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the [Enrichr](https://maayanlab.cloud/Enrichr/) API. This server supports all available gene set libraries from Enrichr and returns only statistically significant results (corrected-$p$ < 0.05) for LLM tools to interpret.
 
-Use the button below to install the MCP server to Cursor with default settings (GO Biological Process only).
+## Installation
+
+For Claude Desktop, please download the [Desktop Extension](https://github.com/tianqitang1/enrichr-mcp-server/releases/latest) and install it by clicking `☰ (top left) -> File -> Settings` and drag and drop the downloaded file into the `Settings` window.
+
+Use the button below to install the MCP server to Cursor, VS Code, or VS Code Insiders with default settings.
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=enrichr-mcp-server&config=eyJjb21tYW5kIjoibnB4IC15IGVucmljaHItbWNwLXNlcnZlciAtLWNvbXBhY3QgLS1tYXgtdGVybXMgMTAwIn0%3D)
+[![Add to VS Code](https://img.shields.io/badge/Add_to_VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22enrichr-mcp-server%22%2C%22--compact%22%2C%22--max-terms%22%2C%22100%22%5D%7D)
+[![Add to VS Code Insiders](https://img.shields.io/badge/Add_to_VS_Code_Insiders-24bfa5?style=for-the-badge&logo=visualstudiocode&logoColor=white)](vscode-insiders:mcp/install?%7B%22name%22%3A%22enrichr-mcp-server%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22enrichr-mcp-server%22%2C%22--compact%22%2C%22--max-terms%22%2C%22100%22%5D%7D)
+
+
+For Claude Code, use the following command:
+```bash
+claude mcp add enrichr-mcp-server -- npx -y enrichr-mcp-server
+```
 
 ## Features
 
