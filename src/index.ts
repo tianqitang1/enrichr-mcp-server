@@ -41,7 +41,7 @@ function parseConfig() {
   const args = process.argv.slice(2);
   const config = {
     defaultLibraries: ["GO_Biological_Process_2025"], // Default fallback
-    version: "0.1.8",
+    version: "0.1.10",
     maxTermsPerLibrary: 50, // Default to 50 terms per library
     format: "detailed" as "detailed" | "compact" | "minimal", // Default to detailed format
     saveToFile: false, // Default to not saving to file
