@@ -1,0 +1,84 @@
+{
+  "dxt_version": "0.1",
+  "name": "enrichr-mcp-server",
+  "display_name": "Enrichr MCP Server",
+  "version": "0.1.10",
+  "description": "Gene set enrichment analysis using Enrichr API with multi-library support",
+  "long_description": "A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the Enrichr API. This server supports all available gene set libraries from Enrichr and returns only statistically significant results (adjusted p < 0.05) for LLM tools to interpret.\n\nFeatures:\n- Multi-Library Enrichment Analysis: Query multiple Enrichr libraries simultaneously\n- Comprehensive Library Support: Access to hundreds of gene set libraries including GO, pathways, diseases, tissues, drugs\n- GO Enrichment Analysis: Specialized tool for GO Biological Process enrichment analysis\n- Configurable output formats: detailed, compact, or minimal\n- Export results to TSV files",
+  "author": {
+    "name": "Tianqi Tang",
+    "email": "tianqi.tang@ucsf.edu"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tianqitang1/enrichr-mcp-server"
+  },
+  "homepage": "https://github.com/tianqitang1/enrichr-mcp-server#readme",
+  "documentation": "https://github.com/tianqitang1/enrichr-mcp-server#readme",
+  "support": "https://github.com/tianqitang1/enrichr-mcp-server/issues",
+  "icon": "icon.svg",
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/build/index.js"],
+      "env": {
+        "ENRICHR_LIBRARIES": "${user_config.libraries}",
+        "ENRICHR_MAX_TERMS": "${user_config.max_terms}",
+        "ENRICHR_FORMAT": "${user_config.format}",
+        "ENRICHR_OUTPUT_FILE": "${user_config.output_file}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "enrichr_analysis",
+      "description": "Perform gene set enrichment analysis using Enrichr with support for multiple gene set libraries"
+    },
+    {
+      "name": "go_bp_enrichment",
+      "description": "Perform Gene Ontology (GO) Biological Process enrichment analysis"
+    }
+  ],
+  "keywords": ["enrichr", "gene-ontology", "go", "bioinformatics", "enrichment-analysis", "mcp"],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "libraries": {
+      "type": "string",
+      "title": "Default Libraries",
+      "description": "Comma-separated list of Enrichr libraries to query by default (e.g., GO_Biological_Process_2025,KEGG_2021_Human). Use 'pop' for popular libraries.",
+      "default": "pop",
+      "required": false
+    },
+    "max_terms": {
+      "type": "number",
+      "title": "Maximum Terms per Library",
+      "description": "Maximum number of significant terms to show per library",
+      "default": 50,
+      "min": 1,
+      "max": 100,
+      "required": false
+    },
+    "format": {
+      "type": "string",
+      "title": "Output Format",
+      "description": "Default output format for results, can be detailed, compact, or minimal",
+      "default": "detailed",
+      "required": false
+    },
+    "output_file": {
+      "type": "file",
+      "title": "TSV Output File",
+      "description": "Optional path to save complete results as TSV file",
+      "required": false
+    }
+  }
+}
