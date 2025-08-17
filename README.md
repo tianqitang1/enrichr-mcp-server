@@ -7,6 +7,7 @@
 -->
 # Enrichr MCP Server
 
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/tianqitang1/enrichr-mcp-server)](https://archestra.ai/mcp-catalog/tianqitang1__enrichr-mcp-server)
 <div align="center">
   <img src="icon.svg" alt="Enrichr MCP Server Icon" width="128" height="128">
 </div>
