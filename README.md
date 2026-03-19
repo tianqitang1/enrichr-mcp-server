@@ -32,6 +32,8 @@ claude mcp add enrichr-mcp-server -- npx -y enrichr-mcp-server
 ## Features
 
 - **Multi-Library Enrichment Analysis**: Query multiple Enrichr libraries simultaneously (GO, pathways, diseases, tissues, drugs, etc.)
+- **Parallel Library Queries**: All libraries are queried in parallel for fast multi-database analysis
+- **Structured Output**: Returns both human-readable text and structured JSON for programmatic use
 - **Comprehensive Library Support**: Access to hundreds of gene set libraries from Enrichr including:
   - Gene Ontology (Biological Process, Molecular Function, Cellular Component)
   - Pathway databases (KEGG, Reactome, WikiPathways, BioCarta, MSigDB)
@@ -40,7 +42,6 @@ claude mcp add enrichr-mcp-server -- npx -y enrichr-mcp-server
   - Drug/Chemical libraries (DrugMatrix, L1000, TG-GATEs)
   - Transcription Factor targets (ChEA, ENCODE)
   - MicroRNA targets (TargetScan, miRTarBase)
-- **GO Enrichment Analysis**: Specialized tool for GO Biological Process enrichment analysis (I use this a lot, so I made it a tool)
 
 
 ## Configuration
@@ -70,9 +71,9 @@ You can configure libraries that are available for the LLM to use using CLI argu
 {
   "mcpServers": {
     "enrichr-popular": {
-      "command": "npx", 
+      "command": "npx",
       "args": ["-y", "enrichr-mcp-server", "--libraries", "pop"]
-    }, // This will make the most popular libraries available to the LLM, namely GO_Biological_Process_2025, KEGG_2021_Human, Reactome_2022, MSigDB_Hallmark_2020, ChEA_2022, GWAS_Catalog_2023, Human_Phenotype_Ontology, STRING_Interactions_2023, DrugBank_2022, CellMarker_2024
+    },
     "enrichr-pathways": {
       "command": "npx",
       "args": ["-y", "enrichr-mcp-server", "-l", "GO_Biological_Process_2025,KEGG_2021_Human,Reactome_2022"]
@@ -149,42 +150,29 @@ For a complete list of available libraries, visit the [Enrichr Libraries page](h
 ### Benefits of Library Configuration
 
 1. **Simplified Tool Calls**: When libraries aren't specified in tool calls, your configured libraries are used
-2. **Consistent Results**: Ensures consistent library usage across different queries  
+2. **Consistent Results**: Ensures consistent library usage across different queries
 3. **Multiple Configurations**: Set up different MCP server instances for different research contexts
 4. **Override Capability**: Individual tool calls can still specify different libraries when needed
 
 ## Usage
 
-The server provides two tools:
+The server provides one tool:
 
-### `enrichr_analysis` (Recommended for multi-library analysis)
+### `enrichr_analysis`
 
-Performs enrichment analysis across multiple specified Enrichr libraries.
+Performs enrichment analysis across multiple specified Enrichr libraries. All libraries are queried in parallel for optimal performance.
 
 **Parameters:**
-- `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"])
+- `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"]) — minimum 2
 - `libraries` (optional): Array of Enrichr library names to query (defaults to configured libraries)
 - `description` (optional): Description for the gene list (default: "Gene list for enrichment analysis")
 - `maxTerms` (optional): Maximum number of terms to show per library (default: 50)
 - `format` (optional): Output format: `detailed`, `compact`, `minimal` (default: `detailed`)
 - `outputFile` (optional): Path to save complete results as TSV file
 
-### `go_bp_enrichment` 
-
-Performs Gene Ontology (GO) Biological Process enrichment analysis to understand biological functions and processes overrepresented in your gene list. Perfect for interpreting gene expression data, identifying significant biological processes, and uncovering functional implications of genes from RNA-seq, microarray, or other high-throughput experiments.
-
-**Parameters:**
-- `genes` (required): Array of gene symbols (e.g., ["TP53", "BRCA1", "EGFR"])
-- `description` (optional): Description for the gene list (default: "Gene list for GO BP enrichment")
-- `outputFile` (optional): Path to save complete results as TSV file
-
 **Returns:**
-All tools return formatted text with significant terms including:
-- Library name and summary statistics
-- Term name and identifier
-- Adjusted P-value and raw P-value (scientific notation)
-- Odds ratio and combined score
-- Overlapping genes with counts
+- Text content with formatted significant terms including term name, p-values, odds ratio, combined score, and overlapping genes
+- Structured JSON output with full result data for programmatic consumption
 
 ## Available Library Categories
 
@@ -213,6 +201,8 @@ This server uses the Enrichr API:
 ## Development
 
 - **Build**: `npm run build`
+- **Test**: `npm test`
+- **Test (watch)**: `npm run test:watch`
 - **Watch**: `npm run watch` (rebuilds on file changes)
 - **Inspector**: `npm run inspector` (debug with MCP inspector)
 

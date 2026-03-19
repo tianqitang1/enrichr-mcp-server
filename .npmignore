@@ -20,6 +20,7 @@ test/
 tests/
 *.test.js
 *.test.ts
+vitest.config.ts
 
 # Development docs
 ICON_README.md

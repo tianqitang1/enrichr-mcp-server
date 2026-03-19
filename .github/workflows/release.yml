@@ -28,6 +28,11 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: Run tests
+        run: npm test
+        env:
+          CI: true
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
