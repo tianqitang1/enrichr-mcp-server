@@ -2,6 +2,7 @@
   "name": "enrichr-mcp-server",
   "version": "0.3.0",
   "description": "MCP Server for Enrichr gene set enrichment analysis with multi-library support",
+  "mcpName": "io.github.tianqitang1/enrichr",
   "type": "module",
   "main": "./build/index.js",
   "bin": {
