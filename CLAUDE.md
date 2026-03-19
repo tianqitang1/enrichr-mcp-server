@@ -33,17 +33,23 @@ The server uses `McpServer` from `@modelcontextprotocol/sdk` with `StdioServerTr
 - **src/library_descriptions.ts**: Metadata descriptions for all Enrichr libraries
 - **src/__tests__/**: Test suite (unit, integration, MCP protocol tests)
 
+### MCP Primitives:
+- **Tools**: `enrichr_analysis` (run enrichment), `suggest_libraries` (discover relevant libraries by keyword)
+- **Resources**: `enrichr://libraries` (full catalog), `enrichr://libraries/{category}` (by-category template)
+- **Prompts**: `enrichment_analysis` (guided workflow with library selection and interpretation)
+
 ### Key design decisions:
-- **One tool** (`enrichr_analysis`) — the old `go_bp_enrichment` was removed as redundant
+- **Two tools** — `enrichr_analysis` for execution, `suggest_libraries` for discovery (no network needed)
+- **Category system** — `LIBRARY_CATEGORIES` in `library_descriptions.ts` maps each library to one of 22 categories
 - **Parallel library queries** via `Promise.all` for fast multi-library analysis
-- **Structured output** — tool returns both text content and typed JSON (`structuredContent`)
+- **Structured output** — tools return both text content and typed JSON (`structuredContent`)
 - **Zod schemas** for input validation and output typing
 - **Native fetch** — no `node-fetch` dependency (Node 18+ required)
-- **Tool annotations** — `readOnlyHint: true`, `openWorldHint: true`
+- **Tool annotations** — `enrichr_analysis`: `openWorldHint: true`, `suggest_libraries`: `openWorldHint: false`
 
 ## Key Development Patterns
 
-1. **Adding New Libraries**: Add entries to `libraryDescriptions` in `src/library_descriptions.ts`
+1. **Adding New Libraries**: Add entries to `libraryDescriptions` and the appropriate `LIBRARY_CATEGORIES` array in `src/library_descriptions.ts`
 2. **Tool Implementation**: Uses `server.registerTool()` with Zod input/output schemas
 3. **Error Handling**: API calls use `AbortSignal.timeout(30_000)` and try-catch
 4. **Output Formatting**: Three formats (detailed/compact/minimal) to manage token usage
@@ -56,9 +62,9 @@ CLI arguments take precedence over environment variables. Configuration is parse
 ## Testing
 
 Tests use vitest. Three test files:
-- `unit.test.ts` — config parsing, formatting, TSV export (no network)
+- `unit.test.ts` — config parsing, formatting, TSV export, category integrity, suggest_libraries, catalog formatting, prompt building (no network)
 - `integration.test.ts` — real Enrichr API calls (skipped in CI via `process.env.CI`)
-- `mcp-protocol.test.ts` — MCP protocol test via `InMemoryTransport` (real API call skipped in CI)
+- `mcp-protocol.test.ts` — MCP protocol tests for tools, resources, and prompts via `InMemoryTransport` (real API call skipped in CI)
 
 ## Important Notes
 

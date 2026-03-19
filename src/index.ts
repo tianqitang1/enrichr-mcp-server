@@ -11,7 +11,8 @@ import { z } from "zod";
 import { writeFileSync, readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { libraryDescriptions } from "./library_descriptions.js";
+import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { libraryDescriptions, LIBRARY_CATEGORIES, libraryToCategory } from "./library_descriptions.js";
 
 // ---------------------------------------------------------------------------
 // Version (read from package.json)
@@ -464,6 +465,9 @@ const EnrichmentOutputSchema = z.object({
 const CONFIG = parseConfig();
 
 console.error(`Enrichr MCP Server v${VERSION} starting...`);
+console.error(`Tools: enrichr_analysis, suggest_libraries`);
+console.error(`Resources: enrichr://libraries, enrichr://libraries/{category}`);
+console.error(`Prompts: enrichment_analysis`);
 console.error(`Default libraries: ${CONFIG.defaultLibraries.join(", ")}`);
 console.error(`Max terms per library: ${CONFIG.maxTermsPerLibrary}`);
 console.error(`Format: ${CONFIG.format}`);
@@ -492,6 +496,8 @@ const toolDescription = `Perform gene set enrichment analysis using Enrichr acro
 
 Configured default libraries:
 ${configuredLibrariesDesc}
+
+Use suggest_libraries to find relevant libraries for your research context.
 
 Select the most relevant library/libraries based on the user's query.`;
 
@@ -577,6 +583,257 @@ server.registerTool(
       },
     };
   }
+);
+
+// ---------------------------------------------------------------------------
+// suggest_libraries helper
+// ---------------------------------------------------------------------------
+
+const categoryNames = Object.keys(LIBRARY_CATEGORIES) as [string, ...string[]];
+
+export function suggestLibraries(
+  query: string,
+  category?: string,
+  maxResults: number = 10
+): Array<{ library: string; category: string; description: string; relevanceScore: number }> {
+  // Tokenize query to lowercase keywords, drop short words
+  const keywords = query
+    .toLowerCase()
+    .split(/[\s\-_/,.;:!?()]+/)
+    .filter((w) => w.length > 2);
+
+  if (keywords.length === 0) return [];
+
+  // Determine candidate libraries
+  let candidates: string[];
+  if (category && LIBRARY_CATEGORIES[category]) {
+    candidates = LIBRARY_CATEGORIES[category];
+  } else {
+    candidates = Object.keys(libraryDescriptions);
+  }
+
+  const scored: Array<{ library: string; category: string; description: string; relevanceScore: number }> = [];
+
+  for (const lib of candidates) {
+    const desc = libraryDescriptions[lib] ?? "";
+    const libText = lib.replace(/_/g, " ").toLowerCase();
+    const descText = desc.toLowerCase();
+    const searchText = libText + " " + descText;
+
+    let score = 0;
+    for (const kw of keywords) {
+      if (searchText.includes(kw)) {
+        score += 1;
+        // Bonus for library-name match
+        if (libText.includes(kw)) score += 1;
+      }
+    }
+
+    if (score > 0) {
+      scored.push({
+        library: lib,
+        category: libraryToCategory[lib] ?? "other",
+        description: desc,
+        relevanceScore: score,
+      });
+    }
+  }
+
+  scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  return scored.slice(0, maxResults);
+}
+
+// ---------------------------------------------------------------------------
+// suggest_libraries tool
+// ---------------------------------------------------------------------------
+
+const SuggestOutputSchema = z.object({
+  suggestions: z.array(z.object({
+    library: z.string(),
+    category: z.string(),
+    description: z.string(),
+    relevanceScore: z.number(),
+  })),
+  totalAvailable: z.number(),
+  query: z.string(),
+});
+
+server.registerTool(
+  "suggest_libraries",
+  {
+    title: "Suggest Enrichr Libraries",
+    description:
+      "Suggest relevant Enrichr libraries for a research question. Use this before enrichr_analysis to pick the best libraries for a specific topic.",
+    inputSchema: z.object({
+      query: z.string().describe("Research context (e.g., 'DNA repair', 'breast cancer drug resistance')"),
+      category: z.enum(categoryNames).optional().describe("Filter by category"),
+      maxResults: z.number().int().min(1).max(50).optional().describe("Max results (default: 10)"),
+    }),
+    outputSchema: SuggestOutputSchema,
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ query, category, maxResults }) => {
+    const max = maxResults ?? 10;
+    const suggestions = suggestLibraries(query, category, max);
+
+    const textLines = [`Library suggestions for: "${query}"`, ""];
+    if (suggestions.length === 0) {
+      textLines.push("No matching libraries found.");
+    } else {
+      for (const s of suggestions) {
+        textLines.push(`- ${s.library} [${s.category}] (score: ${s.relevanceScore})`);
+        textLines.push(`  ${s.description}`);
+      }
+    }
+
+    return {
+      content: [{ type: "text" as const, text: textLines.join("\n") }],
+      structuredContent: {
+        suggestions,
+        totalAvailable: Object.keys(libraryDescriptions).length,
+        query,
+      },
+    };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Library catalog helpers
+// ---------------------------------------------------------------------------
+
+export function formatFullCatalog(): string {
+  const lines: string[] = ["# Enrichr Library Catalog", ""];
+  for (const [cat, libs] of Object.entries(LIBRARY_CATEGORIES)) {
+    lines.push(`## ${cat} (${libs.length} libraries)`);
+    for (const lib of libs) {
+      const desc = libraryDescriptions[lib] ?? "";
+      lines.push(`- ${lib}: ${desc}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+export function formatCategoryCatalog(category: string): string {
+  const libs = LIBRARY_CATEGORIES[category];
+  if (!libs) {
+    return `Unknown category: "${category}". Available categories: ${Object.keys(LIBRARY_CATEGORIES).join(", ")}`;
+  }
+  const lines: string[] = [`# ${category} (${libs.length} libraries)`, ""];
+  for (const lib of libs) {
+    const desc = libraryDescriptions[lib] ?? "";
+    lines.push(`- ${lib}: ${desc}`);
+  }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Library catalog resources
+// ---------------------------------------------------------------------------
+
+server.registerResource(
+  "library_catalog",
+  "enrichr://libraries",
+  {
+    title: "Enrichr Library Catalog",
+    description: "All available Enrichr libraries organized by category",
+    mimeType: "text/plain",
+  },
+  async (uri) => ({
+    contents: [{ uri: uri.href, text: formatFullCatalog() }],
+  })
+);
+
+server.registerResource(
+  "library_catalog_by_category",
+  new ResourceTemplate("enrichr://libraries/{category}", {
+    list: async () => ({
+      resources: Object.keys(LIBRARY_CATEGORIES).map((cat) => ({
+        uri: `enrichr://libraries/${cat}`,
+        name: `${cat} libraries`,
+      })),
+    }),
+    complete: {
+      category: (value: string) =>
+        Object.keys(LIBRARY_CATEGORIES).filter((c) => c.startsWith(value)),
+    },
+  }),
+  {
+    title: "Enrichr Libraries by Category",
+    description: "Libraries for a specific category",
+    mimeType: "text/plain",
+  },
+  async (uri, variables) => ({
+    contents: [
+      {
+        uri: uri.href,
+        text: formatCategoryCatalog(variables.category as string),
+      },
+    ],
+  })
+);
+
+// ---------------------------------------------------------------------------
+// enrichment_analysis prompt
+// ---------------------------------------------------------------------------
+
+export function buildEnrichmentPrompt(genes: string, context?: string): string {
+  const lines: string[] = [
+    "# Gene Set Enrichment Analysis Workflow",
+    "",
+    "## Gene List",
+    genes,
+    "",
+  ];
+
+  if (context) {
+    lines.push(
+      "## Research Context",
+      context,
+      "",
+      "## Step 1: Library Selection",
+      `Call \`suggest_libraries\` with the query: "${context}" to find the most relevant Enrichr libraries for this research context.`,
+      "",
+    );
+  }
+
+  lines.push(
+    `## ${context ? "Step 2" : "Step 1"}: Enrichment Analysis`,
+    "Call `enrichr_analysis` with the gene list above and the selected libraries (or use defaults).",
+    "",
+    `## ${context ? "Step 3" : "Step 2"}: Interpretation`,
+    "When interpreting results, consider:",
+    "- Convergent themes across multiple libraries",
+    "- Top enriched pathways and biological processes",
+    "- Potential therapeutic targets or drug associations",
+    "- Unexpected findings that may suggest novel biology",
+  );
+
+  return lines.join("\n");
+}
+
+server.registerPrompt(
+  "enrichment_analysis",
+  {
+    title: "Enrichment Analysis Workflow",
+    description:
+      "Guided workflow for gene set enrichment analysis with library selection and interpretation",
+    argsSchema: {
+      genes: z.string().describe("Gene symbols, comma or newline separated"),
+      context: z.string().optional().describe("Research context for library selection"),
+    },
+  },
+  async ({ genes, context }) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildEnrichmentPrompt(genes, context),
+        },
+      },
+    ],
+  })
 );
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "enrichr-mcp-server",
   "display_name": "Enrichr MCP Server",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Gene set enrichment analysis using Enrichr API with multi-library support",
   "long_description": "A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the Enrichr API. This server supports all available gene set libraries from Enrichr and returns only statistically significant results (adjusted p < 0.05) for LLM tools to interpret.\n\nFeatures:\n- Multi-Library Enrichment Analysis: Query multiple Enrichr libraries simultaneously\n- Comprehensive Library Support: Access to hundreds of gene set libraries including GO, pathways, diseases, tissues, drugs\n- Parallel library queries for fast multi-database analysis\n- Structured output for programmatic downstream processing\n- Configurable output formats: detailed, compact, or minimal\n- Export results to TSV files",
   "author": {
@@ -35,6 +35,10 @@
     {
       "name": "enrichr_analysis",
       "description": "Perform gene set enrichment analysis using Enrichr across multiple gene set libraries"
+    },
+    {
+      "name": "suggest_libraries",
+      "description": "Suggest relevant Enrichr libraries for a research question"
     }
   ],
   "keywords": ["enrichr", "gene-ontology", "go", "bioinformatics", "enrichment-analysis", "mcp"],

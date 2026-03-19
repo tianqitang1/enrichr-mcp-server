@@ -3,11 +3,16 @@ import {
   parseConfig,
   formatMultiLibraryResults,
   saveResultsToTSV,
+  suggestLibraries,
+  formatFullCatalog,
+  formatCategoryCatalog,
+  buildEnrichmentPrompt,
   type LibraryResults,
   type EnrichmentResult,
   type EnrichmentError,
   type EnrichrTerm,
 } from "../index.js";
+import { libraryDescriptions, LIBRARY_CATEGORIES, libraryToCategory } from "../library_descriptions.js";
 import { readFileSync, unlinkSync } from "fs";
 import { join } from "path";
 
@@ -230,5 +235,137 @@ describe("EnrichrTerm structure", () => {
     expect(term).toHaveProperty("overlappingGenes");
     expect(term).toHaveProperty("adjustedPValue");
     expect(Array.isArray(term.overlappingGenes)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Category data integrity
+// ---------------------------------------------------------------------------
+
+describe("LIBRARY_CATEGORIES", () => {
+  it("every library in libraryDescriptions appears in exactly one category", () => {
+    const allLibs = Object.keys(libraryDescriptions);
+    for (const lib of allLibs) {
+      const cats = Object.entries(LIBRARY_CATEGORIES)
+        .filter(([, libs]) => libs.includes(lib))
+        .map(([cat]) => cat);
+      expect(cats).toHaveLength(1);
+    }
+  });
+
+  it("every entry in LIBRARY_CATEGORIES exists in libraryDescriptions", () => {
+    for (const [cat, libs] of Object.entries(LIBRARY_CATEGORIES)) {
+      for (const lib of libs) {
+        expect(libraryDescriptions).toHaveProperty(lib);
+      }
+    }
+  });
+
+  it("libraryToCategory maps all libraries", () => {
+    for (const lib of Object.keys(libraryDescriptions)) {
+      expect(libraryToCategory[lib]).toBeDefined();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// suggestLibraries
+// ---------------------------------------------------------------------------
+
+describe("suggestLibraries", () => {
+  it("returns cancer-related libs for 'cancer'", () => {
+    const results = suggestLibraries("cancer");
+    expect(results.length).toBeGreaterThan(0);
+    const libs = results.map((r) => r.library);
+    expect(libs).toContain("COSMIC_Cancer_Gene_Census");
+  });
+
+  it("respects category filter", () => {
+    const results = suggestLibraries("expression", "cell_types");
+    for (const r of results) {
+      expect(r.category).toBe("cell_types");
+    }
+  });
+
+  it("respects maxResults", () => {
+    const results = suggestLibraries("gene", undefined, 3);
+    expect(results.length).toBeLessThanOrEqual(3);
+  });
+
+  it("returns empty for nonsense query", () => {
+    const results = suggestLibraries("zzzzxqwkjfh");
+    expect(results).toHaveLength(0);
+  });
+
+  it("library-name matches score higher than description-only matches", () => {
+    const results = suggestLibraries("kinase");
+    // KEA or Kinase_Perturbations should rank high since "kinase" is in their name
+    const topLib = results[0];
+    expect(topLib.library.toLowerCase()).toContain("kinase");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatFullCatalog / formatCategoryCatalog
+// ---------------------------------------------------------------------------
+
+describe("formatFullCatalog", () => {
+  it("contains all category headers", () => {
+    const text = formatFullCatalog();
+    for (const cat of Object.keys(LIBRARY_CATEGORIES)) {
+      expect(text).toContain(`## ${cat}`);
+    }
+  });
+
+  it("contains library names", () => {
+    const text = formatFullCatalog();
+    expect(text).toContain("KEGG_2021_Human");
+    expect(text).toContain("GO_Biological_Process_2025");
+  });
+});
+
+describe("formatCategoryCatalog", () => {
+  it("returns only libs from requested category", () => {
+    const text = formatCategoryCatalog("cancer");
+    expect(text).toContain("COSMIC_Cancer_Gene_Census");
+    expect(text).not.toContain("KEGG_2021_Human");
+  });
+
+  it("returns message for invalid category", () => {
+    const text = formatCategoryCatalog("nonexistent_category");
+    expect(text).toContain("Unknown category");
+    expect(text).toContain("Available categories");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildEnrichmentPrompt
+// ---------------------------------------------------------------------------
+
+describe("buildEnrichmentPrompt", () => {
+  it("includes gene list", () => {
+    const prompt = buildEnrichmentPrompt("TP53,BRCA1");
+    expect(prompt).toContain("TP53,BRCA1");
+  });
+
+  it("includes context when provided", () => {
+    const prompt = buildEnrichmentPrompt("TP53,BRCA1", "breast cancer");
+    expect(prompt).toContain("breast cancer");
+    expect(prompt).toContain("Research Context");
+  });
+
+  it("mentions suggest_libraries when context given", () => {
+    const prompt = buildEnrichmentPrompt("TP53,BRCA1", "DNA repair");
+    expect(prompt).toContain("suggest_libraries");
+  });
+
+  it("mentions enrichr_analysis", () => {
+    const prompt = buildEnrichmentPrompt("TP53,BRCA1");
+    expect(prompt).toContain("enrichr_analysis");
+  });
+
+  it("does not mention suggest_libraries when no context", () => {
+    const prompt = buildEnrichmentPrompt("TP53,BRCA1");
+    expect(prompt).not.toContain("suggest_libraries");
   });
 });
