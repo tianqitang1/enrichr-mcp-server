@@ -29,6 +29,10 @@ For Claude Code, use the following command:
 claude mcp add enrichr-mcp-server -- npx -y enrichr-mcp-server
 ```
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/tianqitang1-enrichr-mcp-server).
+
 ## Features
 
 - **Multi-Library Enrichment Analysis**: Query multiple Enrichr libraries simultaneously (GO, pathways, diseases, tissues, drugs, etc.)
