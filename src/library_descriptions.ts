@@ -25,12 +25,14 @@ export const libraryDescriptions: { [key: string]: string } = {
   "CORUM": "Protein complexes from the comprehensive resource of mammalian protein complexes database.",
   
   // Pathways
+  "KEGG_2026": "Current KEGG metabolic and signaling pathways — the up-to-date KEGG release; prefer over older KEGG vintages.",
   "KEGG_2021_Human": "Metabolic and signaling pathways from Kyoto Encyclopedia of Genes and Genomes for human.",
   "KEGG_2019_Human": "KEGG metabolic and signaling pathways database for human (2019 version).",
   "KEGG_2019_Mouse": "KEGG metabolic and signaling pathways database for mouse (2019 version).",
   "KEGG_2016": "KEGG pathways including metabolism, genetic information, environmental information, and cellular processes (2016).",
   "KEGG_2015": "KEGG pathway database covering metabolism, diseases, and drug development (2015 version).",
   "KEGG_2013": "KEGG pathways for metabolism, genetic information processing, and human diseases (2013 version).",
+  "Reactome_Pathways_2024": "Current Reactome release — curated, peer-reviewed pathways for signaling, metabolism, gene expression, and disease.",
   "Reactome_2022": "Curated and peer-reviewed pathways from Reactome covering signaling, metabolism, gene expression, and disease.",
   "Reactome_2016": "Reactome biological pathways including metabolic, signaling, and regulatory pathways (2016 version).",
   "Reactome_2013": "Reactome pathway database with reactions, complexes, and biological processes (2013 version).",
@@ -56,6 +58,10 @@ export const libraryDescriptions: { [key: string]: string } = {
   "hu.MAP": "Human protein complexes derived from over 9,000 mass spectrometry experiments.",
   
   // Ontologies
+  "GO_Biological_Process_2026": "Current Gene Ontology biological process terms — biological objectives and programs accomplished by gene products. The default choice for GO biological process enrichment.",
+  "GO_Cellular_Component_2026": "Current Gene Ontology cellular component terms — the subcellular locations and complexes where gene products act.",
+  "GO_Molecular_Function_2026": "Current Gene Ontology molecular function terms — the biochemical activities of gene products.",
+  "DGIdb_Drug_Targets_2024": "Drug-gene interactions from the Drug Gene Interaction Database — druggable targets and their compounds.",
   "GO_Biological_Process_2025": "Gene Ontology terms describing biological objectives accomplished by gene products.",
   "GO_Biological_Process_2023": "GO terms for biological processes like metabolism, signaling, and development (2023).",
   "GO_Biological_Process_2021": "Gene Ontology biological process annotations describing gene product activities (2021).",
@@ -94,6 +100,7 @@ export const libraryDescriptions: { [key: string]: string } = {
   "Uberon_Cross_Species_Phenotype_Ontology": "Cross-species anatomical structure ontology linking phenotypes across organisms.",
   
   // Diseases/Drugs  
+  "GWAS_Catalog_2025": "Current genome-wide association study results from the NHGRI-EBI GWAS Catalog, linking genes to human traits and diseases.",
   "GWAS_Catalog_2023": "Genome-wide association study results from NHGRI-EBI GWAS Catalog linking genes to traits.",
   "GWAS_Catalog_2019": "Curated GWAS associations between genetic variants and diseases/traits (2019).",
   "UK_Biobank_GWAS_v1": "Genome-wide associations from UK Biobank cohort for complex traits and diseases.",
@@ -327,6 +334,7 @@ export const LIBRARY_CATEGORIES: Record<string, string[]> = {
     "PPI_Hub_Proteins", "CORUM",
   ],
   pathways: [
+    "KEGG_2026", "Reactome_Pathways_2024",
     "KEGG_2021_Human", "KEGG_2019_Human", "KEGG_2019_Mouse",
     "KEGG_2016", "KEGG_2015", "KEGG_2013",
     "Reactome_2022", "Reactome_2016", "Reactome_2013",
@@ -341,6 +349,7 @@ export const LIBRARY_CATEGORIES: Record<string, string[]> = {
     "NURSA_Human_Endogenous_Complexome", "hu.MAP",
   ],
   ontologies: [
+    "GO_Biological_Process_2026", "GO_Cellular_Component_2026", "GO_Molecular_Function_2026",
     "GO_Biological_Process_2025", "GO_Biological_Process_2023",
     "GO_Biological_Process_2021", "GO_Biological_Process_2018",
     "GO_Biological_Process_2017", "GO_Biological_Process_2015",
@@ -364,6 +373,7 @@ export const LIBRARY_CATEGORIES: Record<string, string[]> = {
     "Uberon_Cross_Species_Phenotype_Ontology",
   ],
   diseases_drugs: [
+    "GWAS_Catalog_2025", "DGIdb_Drug_Targets_2024",
     "GWAS_Catalog_2023", "GWAS_Catalog_2019", "UK_Biobank_GWAS_v1",
     "ClinVar_2019", "PheWeb_2019", "DisGeNET",
     "PhenGenI_Association_2021", "Orphanet_Augmented_2021",

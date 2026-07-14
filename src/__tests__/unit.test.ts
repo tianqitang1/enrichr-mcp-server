@@ -4,6 +4,7 @@ import {
   formatMultiLibraryResults,
   saveResultsToTSV,
   suggestLibraries,
+  parseEnrichrJson,
   formatFullCatalog,
   formatCategoryCatalog,
   buildEnrichmentPrompt,
@@ -37,6 +38,7 @@ function makeResult(overrides: Partial<EnrichmentResult> = {}): EnrichmentResult
   return {
     totalTerms: 500,
     significantTerms: 2,
+    backgroundCorrected: false,
     terms: [
       makeTerm(),
       makeTerm({
@@ -66,7 +68,7 @@ describe("parseConfig", () => {
     expect(cfg.format).toBe("detailed");
     expect(cfg.maxTermsPerLibrary).toBe(50);
     expect(cfg.saveToFile).toBe(false);
-    expect(cfg.defaultLibraries).toContain("GO_Biological_Process_2025");
+    expect(cfg.defaultLibraries).toContain("GO_Biological_Process_2026");
   });
 
   it("parses --libraries flag", () => {
@@ -77,7 +79,7 @@ describe("parseConfig", () => {
   it("parses -l pop as popular libraries", () => {
     const cfg = parseConfig(["-l", "pop"]);
     expect(cfg.defaultLibraries.length).toBeGreaterThan(5);
-    expect(cfg.defaultLibraries).toContain("GO_Biological_Process_2025");
+    expect(cfg.defaultLibraries).toContain("GO_Biological_Process_2026");
   });
 
   it("parses --max-terms", () => {
@@ -367,5 +369,220 @@ describe("buildEnrichmentPrompt", () => {
   it("does not mention suggest_libraries when no context", () => {
     const prompt = buildEnrichmentPrompt("TP53,BRCA1");
     expect(prompt).not.toContain("suggest_libraries");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Background correction
+// ---------------------------------------------------------------------------
+
+describe("background-corrected results", () => {
+  it("labels a background-corrected library in detailed output", () => {
+    const results: LibraryResults = {
+      KEGG_2026: makeResult({ backgroundCorrected: true }),
+    };
+    const text = formatMultiLibraryResults(results, 50, "detailed");
+    expect(text).toContain("Background-corrected against the supplied gene background.");
+    expect(text).not.toContain("WARNING");
+  });
+
+  it("surfaces a WARNING when Enrichr could not honour the background", () => {
+    const results: LibraryResults = {
+      GO_Biological_Process_2026: makeResult({
+        backgroundCorrected: false,
+        warning:
+          "Enrichr could not run background-corrected enrichment for " +
+          "'GO_Biological_Process_2026' (HTTP 500); these p-values are NOT corrected.",
+      }),
+    };
+    const text = formatMultiLibraryResults(results, 50, "detailed");
+    expect(text).toContain("WARNING:");
+    expect(text).toContain("NOT corrected");
+  });
+
+  // The whole point of the fallback: a demoted result must never look clean.
+  it("never reports a warned library as background-corrected", () => {
+    const results: LibraryResults = {
+      GO_Biological_Process_2026: makeResult({
+        backgroundCorrected: false,
+        warning: "could not apply background",
+      }),
+    };
+    const text = formatMultiLibraryResults(results, 50, "detailed");
+    expect(text).not.toContain("Background-corrected against");
+  });
+
+  it("records background provenance per row in the TSV", () => {
+    const tmp = join("/tmp", `enrichr-bg-${process.pid}.tsv`);
+    const results: LibraryResults = {
+      KEGG_2026: makeResult({ backgroundCorrected: true }),
+      GO_Biological_Process_2026: makeResult({
+        backgroundCorrected: false,
+        warning: "could not apply background",
+      }),
+    };
+    saveResultsToTSV(results, tmp);
+    const content = readFileSync(tmp, "utf-8");
+
+    expect(content).toContain("Background_Corrected");
+    expect(content).toContain("# WARNING [GO_Biological_Process_2026]");
+    const kegg = content.split("\n").find((l) => l.startsWith("KEGG_2026\t1\t"));
+    const go = content.split("\n").find((l) => l.startsWith("GO_Biological_Process_2026\t1\t"));
+    expect(kegg?.endsWith("\tyes")).toBe(true);
+    expect(go?.endsWith("\tno")).toBe(true);
+
+    unlinkSync(tmp);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Live catalog
+// ---------------------------------------------------------------------------
+
+describe("suggestLibraries with a live catalog", () => {
+  // A catalog holding one live library and none of the retired ones.
+  const catalog = {
+    entries: new Map([
+      [
+        "GO_Biological_Process_2026",
+        {
+          library: "GO_Biological_Process_2026",
+          category: "ontologies",
+          description: "Gene Ontology biological process terms (2026).",
+          termCount: 5000,
+        },
+      ],
+    ]),
+    live: true,
+    fetchedAt: Date.now(),
+  };
+
+  it("only suggests libraries present in the catalog", () => {
+    const hits = suggestLibraries("gene ontology process", undefined, 10, catalog);
+    expect(hits.map((h) => h.library)).toEqual(["GO_Biological_Process_2026"]);
+  });
+
+  it("does not suggest a retired library that the bundled list still describes", () => {
+    // CMAP_2023 is described in library_descriptions.ts but Enrichr retired it.
+    const bundled = suggestLibraries("connectivity map drug", undefined, 50);
+    expect(bundled.some((h) => h.library === "CMAP_2023")).toBe(true);
+
+    const live = suggestLibraries("connectivity map drug", undefined, 50, catalog);
+    expect(live.some((h) => h.library === "CMAP_2023")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseEnrichrJson
+// ---------------------------------------------------------------------------
+
+describe("parseEnrichrJson", () => {
+  // Enrichr emits bare Infinity for the odds ratio; JSON.parse rejects it.
+  it("parses the bare Infinity literal Enrichr emits", () => {
+    const body = '{"KEGG_2026":[[1,"Term",1.5e-6,Infinity,Infinity,["TP53"],2.3e-5]]}';
+    expect(() => JSON.parse(body)).toThrow();
+
+    const parsed = parseEnrichrJson(body);
+    const [row] = parsed.KEGG_2026;
+    expect(row[3]).toBe(Infinity);
+    expect(row[4]).toBe(Infinity);
+    expect(row[2]).toBe(1.5e-6);
+    expect(row[5]).toEqual(["TP53"]);
+  });
+
+  it("parses -Infinity and NaN", () => {
+    const parsed = parseEnrichrJson('{"L":[[1,"T",1e-3,-Infinity,NaN,["A"],1e-2]]}');
+    const [row] = parsed.L;
+    expect(row[3]).toBe(-Infinity);
+    expect(row[4]).toBeNull();
+  });
+
+  // The rewrite is value-position only, so a term named "Infinity" survives.
+  it("does not corrupt the word Infinity inside a term name", () => {
+    const parsed = parseEnrichrJson('{"L":[[1,"Infinity and NaN pathway",1e-3,2.0,3.0,["A"],1e-2]]}');
+    expect(parsed.L[0][1]).toBe("Infinity and NaN pathway");
+  });
+
+  it("still parses ordinary finite responses", () => {
+    const parsed = parseEnrichrJson('{"L":[[1,"T",1e-3,2.5,3.5,["A"],1e-2]]}');
+    expect(parsed.L[0][3]).toBe(2.5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Non-finite statistics in output
+// ---------------------------------------------------------------------------
+
+describe("non-finite statistics", () => {
+  it("renders an infinite odds ratio as Inf rather than crashing", () => {
+    const results: LibraryResults = {
+      KEGG_2026: makeResult({
+        backgroundCorrected: true,
+        significantTerms: 1,
+        terms: [makeTerm({ oddsRatio: Infinity, combinedScore: Infinity })],
+      }),
+    };
+    const text = formatMultiLibraryResults(results, 50, "detailed");
+    expect(text).toContain("Odds Ratio: Inf");
+    expect(text).toContain("Combined Score: Inf");
+  });
+
+  it("writes Inf into the TSV", () => {
+    const tmp = join("/tmp", `enrichr-inf-${process.pid}.tsv`);
+    saveResultsToTSV(
+      {
+        KEGG_2026: makeResult({
+          backgroundCorrected: true,
+          significantTerms: 1,
+          terms: [makeTerm({ oddsRatio: Infinity, combinedScore: 12.5 })],
+        }),
+      },
+      tmp
+    );
+    const content = readFileSync(tmp, "utf-8");
+    expect(content).toContain("\tInf\t12.5000\t");
+    unlinkSync(tmp);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Version recency
+// ---------------------------------------------------------------------------
+
+describe("suggestLibraries version ranking", () => {
+  // Enrichr ships many vintages whose names and descriptions score identically.
+  // Recommending GO_Biological_Process_2013 over _2026 would be a real
+  // regression, so equal-scoring libraries must rank newest first.
+  const vintages = [
+    "GO_Biological_Process_2013",
+    "GO_Biological_Process_2026",
+    "GO_Biological_Process_2021",
+    "GO_Biological_Process_2025",
+  ];
+  const catalog = {
+    entries: new Map(
+      vintages.map((library) => [
+        library,
+        {
+          library,
+          category: "ontologies",
+          // Identical descriptions => identical relevance scores => pure tiebreak.
+          description: "Gene Ontology biological process terms.",
+          termCount: 100,
+        },
+      ])
+    ),
+    live: true,
+    fetchedAt: Date.now(),
+  };
+
+  it("ranks the newest vintage first when relevance ties", () => {
+    const hits = suggestLibraries("gene ontology biological process", undefined, 4, catalog);
+    expect(hits.map((h) => h.library)).toEqual([
+      "GO_Biological_Process_2026",
+      "GO_Biological_Process_2025",
+      "GO_Biological_Process_2021",
+      "GO_Biological_Process_2013",
+    ]);
   });
 });

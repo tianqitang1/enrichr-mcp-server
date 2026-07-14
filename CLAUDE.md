@@ -30,7 +30,8 @@ npm run inspector
 The server uses `McpServer` from `@modelcontextprotocol/sdk` with `StdioServerTransport` for stdio communication. Single file server design:
 
 - **src/index.ts**: Main server — configuration, Enrichr API, formatting, tool registration
-- **src/library_descriptions.ts**: Metadata descriptions for all Enrichr libraries
+- **src/enrichr_catalog.ts**: Live library catalog fetched from Enrichr's `datasetStatistics` (cached 24h, falls back to the bundled list offline)
+- **src/library_descriptions.ts**: Curated descriptions + category map, applied as an *overlay* on the live catalog
 - **src/__tests__/**: Test suite (unit, integration, MCP protocol tests)
 
 ### MCP Primitives:
@@ -39,8 +40,11 @@ The server uses `McpServer` from `@modelcontextprotocol/sdk` with `StdioServerTr
 - **Prompts**: `enrichment_analysis` (guided workflow with library selection and interpretation)
 
 ### Key design decisions:
-- **Two tools** — `enrichr_analysis` for execution, `suggest_libraries` for discovery (no network needed)
+- **Two tools** — `enrichr_analysis` for execution, `suggest_libraries` for discovery
+- **Live catalog, curated overlay** — the *list* of libraries comes from Enrichr at runtime; `library_descriptions.ts` only supplies the prose and categories. Never hardcode the library list: Enrichr retires libraries silently (a dead library returns `{}`, not an error), and a frozen list will recommend libraries that cannot work.
 - **Category system** — `LIBRARY_CATEGORIES` in `library_descriptions.ts` maps each library to one of 22 categories
+- **Background correction** — `background` routes to the separate `speedrichr` service. That service is intermittently unavailable, so failures are retried and only then demoted to uncorrected whole-genome p-values, flagged `backgroundCorrected: false` plus a warning. **Never let a demoted result look corrected** — whole-genome p-values can be ~10 orders of magnitude more significant.
+- **Enrichr returns invalid JSON** — bare `Infinity` for the odds ratio when overlap is complete. Use `parseEnrichrJson()`, not `response.json()`. Non-finite values are nulled at the MCP boundary because Zod rejects `Infinity` for `z.number()` and would fail the whole tool call.
 - **Parallel library queries** via `Promise.all` for fast multi-library analysis
 - **Structured output** — tools return both text content and typed JSON (`structuredContent`)
 - **Zod schemas** for input validation and output typing

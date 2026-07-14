@@ -13,6 +13,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { libraryDescriptions, LIBRARY_CATEGORIES, libraryToCategory } from "./library_descriptions.js";
+import { getCatalog, type Catalog, type CatalogEntry } from "./enrichr_catalog.js";
 
 // ---------------------------------------------------------------------------
 // Version (read from package.json)
@@ -30,18 +31,35 @@ const VERSION: string = packageJson.version;
 // ---------------------------------------------------------------------------
 
 const ENRICHR_URL = "https://maayanlab.cloud/Enrichr";
+
+/**
+ * Background-corrected enrichment lives on a separate Enrichr service. The
+ * classic /Enrichr endpoint has no way to supply a custom background.
+ */
+const SPEEDRICHR_URL = "https://maayanlab.cloud/speedrichr/api";
+
 const FETCH_TIMEOUT_MS = 30_000;
 
+/**
+ * The background service returns sporadic 500s that clear on a retry, so retry
+ * before demoting a result to uncorrected p-values.
+ */
+const BACKGROUND_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 750;
+
+/** A background smaller than this cannot support a meaningful enrichment test. */
+const MIN_BACKGROUND_GENES = 20;
+
 const POPULAR_LIBRARIES = [
-  "GO_Biological_Process_2025",
-  "KEGG_2021_Human",
-  "Reactome_2022",
+  "GO_Biological_Process_2026",
+  "KEGG_2026",
+  "Reactome_Pathways_2024",
   "MSigDB_Hallmark_2020",
   "ChEA_2022",
-  "GWAS_Catalog_2023",
+  "GWAS_Catalog_2025",
   "Human_Phenotype_Ontology",
-  "STRING_Interactions_2023",
-  "DrugBank_2022",
+  "PPI_Hub_Proteins",
+  "DGIdb_Drug_Targets_2024",
   "CellMarker_2024",
 ];
 
@@ -164,8 +182,10 @@ export interface EnrichrTerm {
   rank: number;
   termName: string;
   pValue: number;
-  oddsRatio: number;
-  combinedScore: number;
+  /** Infinity when every background gene in the term is in the gene list. */
+  oddsRatio: number | null;
+  /** Infinity when the odds ratio is infinite. */
+  combinedScore: number | null;
   overlappingGenes: string[];
   adjustedPValue: number;
 }
@@ -174,6 +194,14 @@ export interface EnrichmentResult {
   totalTerms: number;
   significantTerms: number;
   terms: EnrichrTerm[];
+  /**
+   * True when the p-values were computed against a caller-supplied background.
+   * False means the whole-genome default was used — including when a custom
+   * background was requested but Enrichr could not honour it (see `warning`).
+   */
+  backgroundCorrected: boolean;
+  /** Set when the result is not what the caller asked for. */
+  warning?: string;
 }
 
 export interface EnrichmentError {
@@ -195,19 +223,84 @@ function parseEnrichrTuple(tuple: any[]): EnrichrTerm {
   };
 }
 
+/**
+ * Parse an Enrichr response body.
+ *
+ * Enrichr emits bare `Infinity` / `NaN` literals for the odds ratio and
+ * combined score — an infinite odds ratio just means every background gene in
+ * the term is also in the gene list, which is routine with a small custom
+ * background. Those literals are not legal JSON and `JSON.parse` rejects them,
+ * so rewrite them into IEEE-equivalent numeric literals first: `1e999`
+ * overflows to `Infinity`, which is exactly the value Enrichr meant.
+ *
+ * Only bare literals in value position are rewritten, so a term whose *name*
+ * contains the word "Infinity" is left alone.
+ */
+export function parseEnrichrJson(body: string): any {
+  const sanitized = body
+    .replace(/(?<=[:,[]\s*)-Infinity(?=\s*[,\]}])/g, "-1e999")
+    .replace(/(?<=[:,[]\s*)Infinity(?=\s*[,\]}])/g, "1e999")
+    .replace(/(?<=[:,[]\s*)NaN(?=\s*[,\]}])/g, "null");
+
+  return JSON.parse(sanitized);
+}
+
+/** Render a possibly non-finite Enrichr statistic. */
+function formatStat(value: number | null, digits: number): string {
+  if (value === null || Number.isNaN(value)) return "n/a";
+  if (value === Infinity) return "Inf";
+  if (value === -Infinity) return "-Inf";
+  return value.toFixed(digits);
+}
+
+/**
+ * JSON has no way to represent Infinity or NaN, and Zod rejects them for
+ * `z.number()` — so an infinite odds ratio (routine with a custom background,
+ * where a term's every background gene can land in the gene list) would fail
+ * MCP output validation and sink the whole tool call. Replace non-finite
+ * statistics with null on the way out to the wire; the in-memory results keep
+ * the true values, so the text and TSV output still render them as "Inf".
+ */
+function toJsonSafeResults(results: LibraryResults): LibraryResults {
+  const safe = (v: number | null): number | null =>
+    v === null || !Number.isFinite(v) ? null : v;
+
+  return Object.fromEntries(
+    Object.entries(results).map(([library, result]) => {
+      if ("error" in result) return [library, result];
+      return [
+        library,
+        {
+          ...result,
+          terms: result.terms.map((t) => ({
+            ...t,
+            oddsRatio: safe(t.oddsRatio),
+            combinedScore: safe(t.combinedScore),
+          })),
+        },
+      ];
+    })
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Enrichr API
 // ---------------------------------------------------------------------------
 
+/**
+ * Submit a gene list. The classic and speedrichr services keep separate ID
+ * namespaces, so a list must be submitted to whichever service will read it.
+ */
 async function submitGeneList(
   geneList: string[],
-  description: string
+  description: string,
+  baseUrl: string = ENRICHR_URL
 ): Promise<number> {
   const formData = new FormData();
   formData.append("list", geneList.join("\n"));
   formData.append("description", description);
 
-  const response = await fetch(`${ENRICHR_URL}/addList`, {
+  const response = await fetch(`${baseUrl}/addList`, {
     method: "POST",
     body: formData,
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -226,77 +319,232 @@ async function submitGeneList(
   return data.userListId;
 }
 
+/** Register a custom background and return its ID. speedrichr only. */
+async function submitBackground(background: string[]): Promise<string> {
+  const formData = new FormData();
+  formData.append("background", background.join("\n"));
+
+  const response = await fetch(`${SPEEDRICHR_URL}/addbackground`, {
+    method: "POST",
+    body: formData,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as any;
+  if (!data.backgroundid) {
+    throw new Error(
+      `'backgroundid' not found in Enrichr response: ${JSON.stringify(data)}`
+    );
+  }
+  return data.backgroundid;
+}
+
+/** Split an Enrichr term array into a typed result. */
+function toResult(
+  allResults: any[],
+  backgroundCorrected: boolean,
+  warning?: string
+): EnrichmentResult {
+  const significant = allResults
+    .filter((r: any[]) => r[6] < 0.05)
+    .map(parseEnrichrTuple);
+
+  return {
+    totalTerms: allResults.length,
+    significantTerms: significant.length,
+    terms: significant,
+    backgroundCorrected,
+    ...(warning ? { warning } : {}),
+  };
+}
+
 async function fetchLibrary(
   userListId: number,
-  library: string
-): Promise<[string, EnrichmentResult | EnrichmentError]> {
-  try {
-    const params = new URLSearchParams({
-      userListId: userListId.toString(),
+  library: string,
+  warning?: string
+): Promise<EnrichmentResult | EnrichmentError> {
+  const params = new URLSearchParams({
+    userListId: userListId.toString(),
+    backgroundType: library,
+  });
+
+  const response = await fetch(`${ENRICHR_URL}/enrich?${params}`, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    return { error: `HTTP ${response.status}: ${response.statusText}` };
+  }
+
+  const data = parseEnrichrJson(await response.text());
+
+  // A retired or misspelled library is not an error to Enrichr — it silently
+  // returns {}. Surface it rather than reporting zero enriched terms.
+  if (!(library in data)) {
+    return {
+      error:
+        `Library '${library}' returned no result. It is probably retired or ` +
+        `misspelled — read the enrichr://libraries resource or call ` +
+        `suggest_libraries for the current catalog.`,
+    };
+  }
+
+  return toResult(data[library], false, warning);
+}
+
+/**
+ * Background-corrected enrichment via speedrichr.
+ *
+ * The background service is intermittently flaky — it can return HTTP 500 for a
+ * library that works perfectly a few minutes later. Falling straight through to
+ * the uncorrected endpoint on the first failure would silently hand back
+ * whole-genome p-values (far more significant than the background-corrected
+ * ones) when a retry would have produced the right answer, so failures are
+ * retried before the result is demoted.
+ *
+ * If it still fails, we fall back to the classic endpoint rather than erroring
+ * out, but flag the result `backgroundCorrected: false` and attach a warning.
+ * A demoted result is never allowed to look like a corrected one.
+ */
+async function fetchLibraryWithBackground(
+  speedListId: number,
+  backgroundId: string,
+  library: string,
+  classicListId: () => Promise<number>
+): Promise<EnrichmentResult | EnrichmentError> {
+  const body = () =>
+    new URLSearchParams({
+      userListId: speedListId.toString(),
+      backgroundid: backgroundId,
       backgroundType: library,
     });
 
-    const response = await fetch(`${ENRICHR_URL}/enrich?${params}`, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  let failure = "unknown error";
+  let attempts = 0;
 
-    if (!response.ok) {
-      return [
-        library,
-        { error: `HTTP ${response.status}: ${response.statusText}` },
-      ];
+  for (let attempt = 0; attempt <= BACKGROUND_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
     }
+    attempts++;
 
-    const data = (await response.json()) as any;
-    if (!(library in data)) {
-      return [
-        library,
-        {
-          error: `Library '${library}' not found. Available: ${Object.keys(data).join(", ")}`,
-        },
-      ];
+    try {
+      const response = await fetch(`${SPEEDRICHR_URL}/backgroundenrich`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body(),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (response.ok) {
+        const data = parseEnrichrJson(await response.text());
+        if (library in data) {
+          return toResult(data[library], true);
+        }
+        // A well-formed response without the library is not worth retrying.
+        failure = "library missing from the background-enrichment response";
+        break;
+      }
+
+      failure = `HTTP ${response.status}`;
+      // 4xx means the request itself is wrong; retrying will not help.
+      if (response.status < 500) break;
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
     }
-
-    const allResults: any[] = data[library];
-    const significantResults = allResults
-      .filter((r: any[]) => r[6] < 0.05)
-      .map(parseEnrichrTuple);
-
-    return [
-      library,
-      {
-        totalTerms: allResults.length,
-        significantTerms: significantResults.length,
-        terms: significantResults,
-      },
-    ];
-  } catch (error) {
-    return [
-      library,
-      {
-        error: `Error querying ${library}: ${error instanceof Error ? error.message : String(error)}`,
-      },
-    ];
   }
+
+  const warning =
+    `Enrichr failed to run background-corrected enrichment for '${library}' ` +
+    `after ${attempts} attempt${attempts === 1 ? "" : "s"} (${failure}). These ` +
+    `p-values were computed against Enrichr's default whole-genome background ` +
+    `and are NOT corrected for the background you supplied, so they overstate ` +
+    `significance. Re-run to retry — this endpoint is intermittently unavailable.`;
+
+  return fetchLibrary(await classicListId(), library, warning);
 }
 
 export async function queryEnrichrLibraries(
   geneList: string[],
   libraries: string[],
-  description: string = "Gene list for enrichment"
+  description: string = "Gene list for enrichment",
+  background?: string[]
 ): Promise<LibraryResults> {
+  const failAll = (msg: string): LibraryResults =>
+    Object.fromEntries(libraries.map((lib) => [lib, { error: msg }]));
+
   try {
+    if (background && background.length > 0) {
+      const [speedListId, backgroundId] = await Promise.all([
+        submitGeneList(geneList, description, SPEEDRICHR_URL),
+        submitBackground(background),
+      ]);
+
+      // Only submit to the classic service if a library actually falls back.
+      let classicPromise: Promise<number> | null = null;
+      const classicListId = () => {
+        classicPromise ??= submitGeneList(geneList, description, ENRICHR_URL);
+        return classicPromise;
+      };
+
+      const entries = await Promise.all(
+        libraries.map(async (lib) => {
+          try {
+            return [
+              lib,
+              await fetchLibraryWithBackground(
+                speedListId,
+                backgroundId,
+                lib,
+                classicListId
+              ),
+            ] as const;
+          } catch (error) {
+            return [
+              lib,
+              {
+                error: `Error querying ${lib}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              },
+            ] as const;
+          }
+        })
+      );
+
+      return Object.fromEntries(entries);
+    }
+
     const userListId = await submitGeneList(geneList, description);
 
-    // Parallel library queries
     const entries = await Promise.all(
-      libraries.map((lib) => fetchLibrary(userListId, lib))
+      libraries.map(async (lib) => {
+        try {
+          return [lib, await fetchLibrary(userListId, lib)] as const;
+        } catch (error) {
+          return [
+            lib,
+            {
+              error: `Error querying ${lib}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            },
+          ] as const;
+        }
+      })
     );
 
     return Object.fromEntries(entries);
   } catch (error) {
-    const msg = `Error querying Enrichr: ${error instanceof Error ? error.message : String(error)}`;
-    return Object.fromEntries(libraries.map((lib) => [lib, { error: msg }]));
+    return failAll(
+      `Error querying Enrichr: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 }
 
@@ -319,7 +567,14 @@ export function formatMultiLibraryResults(
       continue;
     }
 
-    const { totalTerms, significantTerms, terms } = result;
+    const { totalTerms, significantTerms, terms, backgroundCorrected, warning } =
+      result;
+
+    if (warning) {
+      lines.push(`WARNING: ${warning}`);
+    } else if (backgroundCorrected) {
+      lines.push("Background-corrected against the supplied gene background.");
+    }
 
     if (significantTerms === 0) {
       lines.push(
@@ -351,8 +606,8 @@ export function formatMultiLibraryResults(
         lines.push(`${i + 1}. ${t.termName}`);
         lines.push(`   Adjusted P-value: ${t.adjustedPValue.toExponential(2)}`);
         lines.push(`   Raw P-value: ${t.pValue.toExponential(2)}`);
-        lines.push(`   Odds Ratio: ${t.oddsRatio.toFixed(2)}`);
-        lines.push(`   Combined Score: ${t.combinedScore.toFixed(2)}`);
+        lines.push(`   Odds Ratio: ${formatStat(t.oddsRatio, 2)}`);
+        lines.push(`   Combined Score: ${formatStat(t.combinedScore, 2)}`);
         lines.push(
           `   Overlapping Genes (${t.overlappingGenes.length}): ${t.overlappingGenes.join(", ")}`
         );
@@ -391,15 +646,20 @@ export function saveResultsToTSV(
       "Combined_Score",
       "Gene_Count",
       "Overlapping_Genes",
+      "Background_Corrected",
     ].join("\t"),
   ];
 
   for (const [library, result] of Object.entries(results)) {
     if ("error" in result) {
       lines.push(
-        [library, "ERROR", result.error, "", "", "", "", "", "", ""].join("\t")
+        [library, "ERROR", result.error, "", "", "", "", "", "", "", ""].join("\t")
       );
       continue;
+    }
+
+    if (result.warning) {
+      lines.push(`# WARNING [${library}]: ${result.warning}`);
     }
 
     for (const t of result.terms) {
@@ -417,10 +677,11 @@ export function saveResultsToTSV(
           termId,
           t.adjustedPValue.toExponential(6),
           t.pValue.toExponential(6),
-          t.oddsRatio.toFixed(4),
-          t.combinedScore.toFixed(4),
+          formatStat(t.oddsRatio, 4),
+          formatStat(t.combinedScore, 4),
           t.overlappingGenes.length.toString(),
           t.overlappingGenes.join(";"),
+          result.backgroundCorrected ? "yes" : "no",
         ].join("\t")
       );
     }
@@ -437,8 +698,8 @@ const EnrichrTermSchema = z.object({
   rank: z.number(),
   termName: z.string(),
   pValue: z.number(),
-  oddsRatio: z.number(),
-  combinedScore: z.number(),
+  oddsRatio: z.number().nullable(),
+  combinedScore: z.number().nullable(),
   overlappingGenes: z.array(z.string()),
   adjustedPValue: z.number(),
 });
@@ -447,6 +708,8 @@ const LibraryResultSchema = z.object({
   totalTerms: z.number(),
   significantTerms: z.number(),
   terms: z.array(EnrichrTermSchema),
+  backgroundCorrected: z.boolean(),
+  warning: z.string().optional(),
 });
 
 const LibraryErrorSchema = z.object({
@@ -488,18 +751,26 @@ const configuredLibrariesDesc = CONFIG.defaultLibraries
   )
   .join("\n");
 
-const allAvailableLibraries = Object.keys(libraryDescriptions)
-  .map((lib) => `'${lib}'`)
-  .join(", ");
-
 const toolDescription = `Perform gene set enrichment analysis using Enrichr across multiple gene set libraries. Returns only statistically significant terms (adjusted p < 0.05).
 
 Configured default libraries:
 ${configuredLibrariesDesc}
 
-Use suggest_libraries to find relevant libraries for your research context.
+Any library in Enrichr's live catalog is accepted. Enrichr adds and retires
+libraries continuously, so do not rely on a memorized list: call
+suggest_libraries, or read the enrichr://libraries resource, to discover the
+libraries that currently exist.
 
-Select the most relevant library/libraries based on the user's query.`;
+Pass 'background' to test against a custom background gene set (for example,
+only the genes expressed in your assay) instead of Enrichr's whole-genome
+default. This is the statistically correct choice whenever the gene list was
+drawn from a restricted universe, and it matters: the whole-genome default can
+overstate significance by many orders of magnitude.
+
+Each library's result reports 'backgroundCorrected'. If Enrichr's background
+service is unavailable the result falls back to uncorrected whole-genome
+p-values, flagged with a warning — treat those numbers as inflated and re-run
+rather than reporting them as background-corrected.`;
 
 server.registerTool(
   "enrichr_analysis",
@@ -517,7 +788,20 @@ server.registerTool(
         .array(z.string())
         .optional()
         .describe(
-          `Enrichr libraries to query. Defaults to configured libraries. Available: ${allAvailableLibraries}`
+          "Enrichr libraries to query. Defaults to the configured libraries. " +
+            "Use suggest_libraries to discover valid names."
+        ),
+      background: z
+        .array(z.string())
+        .min(MIN_BACKGROUND_GENES)
+        .optional()
+        .describe(
+          "Custom background gene set to test against instead of the whole " +
+            "genome — e.g. all genes detected in your experiment. Strongly " +
+            "recommended when the gene list came from a restricted universe " +
+            "(expressed genes, a targeted panel), since the whole-genome " +
+            "default inflates significance. Must contain the universe the gene " +
+            "list was drawn from, not just the gene list itself."
         ),
       description: z
         .string()
@@ -548,6 +832,7 @@ server.registerTool(
   async ({
     genes,
     libraries,
+    background,
     description,
     maxTerms,
     format,
@@ -559,7 +844,7 @@ server.registerTool(
     const fmt = format ?? CONFIG.format;
     const outFile = outputFile ?? (CONFIG.saveToFile ? CONFIG.outputFile : undefined);
 
-    const resultsData = await queryEnrichrLibraries(genes, libs, desc);
+    const resultsData = await queryEnrichrLibraries(genes, libs, desc, background);
     const formattedText = formatMultiLibraryResults(resultsData, max, fmt);
 
     let tsvFile: string | undefined;
@@ -578,7 +863,7 @@ server.registerTool(
     return {
       content: [{ type: "text" as const, text: textOutput }],
       structuredContent: {
-        results: resultsData,
+        results: toJsonSafeResults(resultsData),
         ...(tsvFile ? { tsvFile } : {}),
       },
     };
@@ -591,10 +876,28 @@ server.registerTool(
 
 const categoryNames = Object.keys(LIBRARY_CATEGORIES) as [string, ...string[]];
 
+/** The bundled descriptions as catalog entries, for when no live catalog is given. */
+function bundledEntries(): CatalogEntry[] {
+  return Object.entries(libraryDescriptions).map(([library, description]) => ({
+    library,
+    category: libraryToCategory[library] ?? "other",
+    description,
+    termCount: 0,
+  }));
+}
+
+/**
+ * Rank libraries against a free-text research question.
+ *
+ * Pass `catalog` to score only libraries Enrichr currently serves; without it
+ * the bundled descriptions are used, which include libraries Enrichr has since
+ * retired.
+ */
 export function suggestLibraries(
   query: string,
   category?: string,
-  maxResults: number = 10
+  maxResults: number = 10,
+  catalog?: Catalog
 ): Array<{ library: string; category: string; description: string; relevanceScore: number }> {
   // Tokenize query to lowercase keywords, drop short words
   const keywords = query
@@ -604,20 +907,16 @@ export function suggestLibraries(
 
   if (keywords.length === 0) return [];
 
-  // Determine candidate libraries
-  let candidates: string[];
-  if (category && LIBRARY_CATEGORIES[category]) {
-    candidates = LIBRARY_CATEGORIES[category];
-  } else {
-    candidates = Object.keys(libraryDescriptions);
-  }
+  const entries = catalog ? [...catalog.entries.values()] : bundledEntries();
+  const candidates = category
+    ? entries.filter((e) => e.category === category)
+    : entries;
 
   const scored: Array<{ library: string; category: string; description: string; relevanceScore: number }> = [];
 
-  for (const lib of candidates) {
-    const desc = libraryDescriptions[lib] ?? "";
-    const libText = lib.replace(/_/g, " ").toLowerCase();
-    const descText = desc.toLowerCase();
+  for (const entry of candidates) {
+    const libText = entry.library.replace(/_/g, " ").toLowerCase();
+    const descText = entry.description.toLowerCase();
     const searchText = libText + " " + descText;
 
     let score = 0;
@@ -631,16 +930,35 @@ export function suggestLibraries(
 
     if (score > 0) {
       scored.push({
-        library: lib,
-        category: libraryToCategory[lib] ?? "other",
-        description: desc,
+        library: entry.library,
+        category: entry.category,
+        description: entry.description,
         relevanceScore: score,
       });
     }
   }
 
-  scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  // Equally relevant libraries are not equally useful: Enrichr ships many
+  // vintages of the same library (GO_Biological_Process_2013 … _2026) whose
+  // names and descriptions score identically, so break ties on the version year
+  // and recommend the current data rather than whichever Enrichr happened to
+  // list first.
+  scored.sort(
+    (a, b) =>
+      b.relevanceScore - a.relevanceScore ||
+      libraryYear(b.library) - libraryYear(a.library) ||
+      a.library.localeCompare(b.library)
+  );
   return scored.slice(0, maxResults);
+}
+
+/** The version year in a library name, or 0 for unversioned libraries. */
+function libraryYear(library: string): number {
+  let latest = 0;
+  for (const match of library.matchAll(/(?:^|[_\-])(19|20)(\d{2})(?=$|[_\-])/g)) {
+    latest = Math.max(latest, Number(match[1] + match[2]));
+  }
+  return latest;
 }
 
 // ---------------------------------------------------------------------------
@@ -674,9 +992,17 @@ server.registerTool(
   },
   async ({ query, category, maxResults }) => {
     const max = maxResults ?? 10;
-    const suggestions = suggestLibraries(query, category, max);
+    const catalog = await getCatalog();
+    const suggestions = suggestLibraries(query, category, max, catalog);
 
     const textLines = [`Library suggestions for: "${query}"`, ""];
+    if (!catalog.live) {
+      textLines.push(
+        "NOTE: Enrichr's catalog was unreachable; these suggestions come from " +
+          "the bundled list and may include retired libraries.",
+        ""
+      );
+    }
     if (suggestions.length === 0) {
       textLines.push("No matching libraries found.");
     } else {
@@ -690,7 +1016,7 @@ server.registerTool(
       content: [{ type: "text" as const, text: textLines.join("\n") }],
       structuredContent: {
         suggestions,
-        totalAvailable: Object.keys(libraryDescriptions).length,
+        totalAvailable: catalog.entries.size,
         query,
       },
     };
@@ -701,28 +1027,59 @@ server.registerTool(
 // Library catalog helpers
 // ---------------------------------------------------------------------------
 
-export function formatFullCatalog(): string {
+/** Group catalog entries by category, preserving the declared category order. */
+function groupByCategory(catalog?: Catalog): Map<string, CatalogEntry[]> {
+  const entries = catalog ? [...catalog.entries.values()] : bundledEntries();
+  const grouped = new Map<string, CatalogEntry[]>();
+
+  // Seed with the declared categories so their order is stable in the output.
+  for (const cat of Object.keys(LIBRARY_CATEGORIES)) grouped.set(cat, []);
+
+  for (const entry of entries) {
+    const bucket = grouped.get(entry.category);
+    if (bucket) bucket.push(entry);
+    else grouped.set(entry.category, [entry]);
+  }
+
+  for (const [cat, libs] of grouped) {
+    if (libs.length === 0) grouped.delete(cat);
+    else libs.sort((a, b) => a.library.localeCompare(b.library));
+  }
+
+  return grouped;
+}
+
+export function formatFullCatalog(catalog?: Catalog): string {
   const lines: string[] = ["# Enrichr Library Catalog", ""];
-  for (const [cat, libs] of Object.entries(LIBRARY_CATEGORIES)) {
+  if (catalog && !catalog.live) {
+    lines.push(
+      "NOTE: Enrichr's catalog was unreachable; this is the bundled list and " +
+        "may include retired libraries.",
+      ""
+    );
+  }
+  for (const [cat, libs] of groupByCategory(catalog)) {
     lines.push(`## ${cat} (${libs.length} libraries)`);
-    for (const lib of libs) {
-      const desc = libraryDescriptions[lib] ?? "";
-      lines.push(`- ${lib}: ${desc}`);
+    for (const entry of libs) {
+      lines.push(`- ${entry.library}: ${entry.description}`);
     }
     lines.push("");
   }
   return lines.join("\n");
 }
 
-export function formatCategoryCatalog(category: string): string {
-  const libs = LIBRARY_CATEGORIES[category];
+export function formatCategoryCatalog(
+  category: string,
+  catalog?: Catalog
+): string {
+  const grouped = groupByCategory(catalog);
+  const libs = grouped.get(category);
   if (!libs) {
-    return `Unknown category: "${category}". Available categories: ${Object.keys(LIBRARY_CATEGORIES).join(", ")}`;
+    return `Unknown category: "${category}". Available categories: ${[...grouped.keys()].join(", ")}`;
   }
   const lines: string[] = [`# ${category} (${libs.length} libraries)`, ""];
-  for (const lib of libs) {
-    const desc = libraryDescriptions[lib] ?? "";
-    lines.push(`- ${lib}: ${desc}`);
+  for (const entry of libs) {
+    lines.push(`- ${entry.library}: ${entry.description}`);
   }
   return lines.join("\n");
 }
@@ -740,7 +1097,7 @@ server.registerResource(
     mimeType: "text/plain",
   },
   async (uri) => ({
-    contents: [{ uri: uri.href, text: formatFullCatalog() }],
+    contents: [{ uri: uri.href, text: formatFullCatalog(await getCatalog()) }],
   })
 );
 
@@ -767,7 +1124,10 @@ server.registerResource(
     contents: [
       {
         uri: uri.href,
-        text: formatCategoryCatalog(variables.category as string),
+        text: formatCategoryCatalog(
+          variables.category as string,
+          await getCatalog()
+        ),
       },
     ],
   })

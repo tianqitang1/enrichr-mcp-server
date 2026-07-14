@@ -57,7 +57,8 @@ Add to your MCP client config (e.g., `.cursor/mcp.json`):
 ## Features
 
 - **Two Tools**: `enrichr_analysis` for running enrichment, `suggest_libraries` for discovering relevant libraries
-- **Library Catalog**: Browse 200+ libraries by category via MCP resources
+- **Custom Background Correction**: Test against your own background gene set (e.g. only the genes expressed in your assay) instead of the whole genome
+- **Live Library Catalog**: The library list is fetched from Enrichr at runtime, so new releases appear automatically and retired libraries are never suggested
 - **Guided Workflow**: `enrichment_analysis` prompt for end-to-end analysis with interpretation
 - **22 Library Categories**: Programmatic category mapping for all libraries (pathways, cancer, kinases, etc.)
 - **Parallel Library Queries**: All libraries queried in parallel for fast multi-database analysis
@@ -69,7 +70,7 @@ Add to your MCP client config (e.g., `.cursor/mcp.json`):
 
 ### `suggest_libraries`
 
-Discover the most relevant Enrichr libraries for a research question. Use this before `enrichr_analysis` to pick the best libraries for your specific topic. **No network call needed** — searches locally across all library names and descriptions.
+Discover the most relevant Enrichr libraries for a research question. Use this before `enrichr_analysis` to pick the best libraries for your specific topic. Searches Enrichr's **live** library catalog, so it never recommends a library that Enrichr has retired. When two libraries are equally relevant, the newer vintage ranks first (`GO_Biological_Process_2026` over `..._2021`).
 
 **Parameters:**
 - `query` (required): Research context (e.g., "DNA repair", "breast cancer drug resistance")
@@ -87,6 +88,7 @@ Perform enrichment analysis across multiple Enrichr libraries in parallel.
 **Parameters:**
 - `genes` (required): Array of gene symbols (e.g., `["TP53", "BRCA1", "EGFR"]`) — minimum 2
 - `libraries` (optional): Array of Enrichr library names to query (defaults to configured libraries)
+- `background` (optional): Custom background gene set — minimum 20 genes. See below.
 - `description` (optional): Description for the gene list
 - `maxTerms` (optional): Maximum terms per library (default: 50)
 - `format` (optional): Output format: `detailed`, `compact`, `minimal`
@@ -94,7 +96,32 @@ Perform enrichment analysis across multiple Enrichr libraries in parallel.
 
 **Returns:**
 - Text content with formatted significant terms (name, p-values, odds ratio, combined score, overlapping genes)
-- Structured JSON output with full result data
+- Structured JSON output with full result data, including `backgroundCorrected` per library
+
+#### Background correction
+
+By default Enrichr tests your gene list against the **whole genome**. If your genes
+were drawn from a restricted universe — only the genes expressed in your tissue, or
+a targeted panel — the whole-genome default overstates significance, often by many
+orders of magnitude. Pass `background` with the universe the list was drawn from:
+
+```json
+{
+  "genes": ["TP53", "BRCA1", "ATM", "CHEK2"],
+  "background": ["TP53", "BRCA1", "ATM", "CHEK2", "ACTB", "GAPDH", "..."],
+  "libraries": ["GO_Biological_Process_2026"]
+}
+```
+
+The difference is not cosmetic. For a 16-gene DNA-damage list, the top GO term moves
+from an adjusted p of 1.2e-16 (whole genome) to 1.8e-5 (48-gene background), and the
+number of "significant" terms drops from 359 to 10.
+
+Background correction runs against Enrichr's separate `speedrichr` service, which is
+intermittently unavailable. Failures are retried; if they persist, the library falls
+back to uncorrected whole-genome p-values, and the result is flagged
+`backgroundCorrected: false` with a loud `WARNING` in the text output. **A fallback
+result is never presented as if it were background-corrected.**
 
 ## Resources
 
@@ -199,23 +226,29 @@ When using the default `-l pop` configuration:
 
 | Library | Description |
 |---------|-------------|
-| `GO_Biological_Process_2025` | Gene Ontology terms describing biological objectives accomplished by gene products. |
-| `KEGG_2021_Human` | Metabolic and signaling pathways from KEGG for human. |
-| `Reactome_2022` | Curated and peer-reviewed pathways covering signaling, metabolism, and disease. |
+| `GO_Biological_Process_2026` | Current Gene Ontology biological process terms. |
+| `KEGG_2026` | Current KEGG metabolic and signaling pathways. |
+| `Reactome_Pathways_2024` | Current Reactome release — curated, peer-reviewed pathways. |
 | `MSigDB_Hallmark_2020` | Hallmark gene sets representing well-defined biological states and processes. |
 | `ChEA_2022` | ChIP-seq experiments identifying transcription factor-gene interactions. |
-| `GWAS_Catalog_2023` | Genome-wide association study results linking genes to traits. |
+| `GWAS_Catalog_2025` | Genome-wide association study results linking genes to traits. |
 | `Human_Phenotype_Ontology` | Standardized vocabulary of phenotypic abnormalities associated with human diseases. |
-| `STRING_Interactions_2023` | Protein interactions from STRING including experimental and predicted. |
-| `DrugBank_2022` | Drug targets from DrugBank including approved and experimental compounds. |
+| `PPI_Hub_Proteins` | Highly connected hub proteins from protein-protein interaction networks. |
+| `DGIdb_Drug_Targets_2024` | Drug-gene interactions from the Drug Gene Interaction Database. |
 | `CellMarker_2024` | Manually curated cell type markers for human and mouse. |
 
 ## API Details
 
 This server uses the Enrichr API:
-- **Add List Endpoint**: `https://maayanlab.cloud/Enrichr/addList`
-- **Enrichment Endpoint**: `https://maayanlab.cloud/Enrichr/enrich`
-- **Supported Libraries**: All libraries available through the [Enrichr web interface](https://maayanlab.cloud/Enrichr/#libraries)
+- **Add List**: `https://maayanlab.cloud/Enrichr/addList`
+- **Enrichment**: `https://maayanlab.cloud/Enrichr/enrich`
+- **Library Catalog**: `https://maayanlab.cloud/Enrichr/datasetStatistics` — fetched at runtime and cached for 24h, so the library list is never stale
+- **Background-corrected enrichment**: `https://maayanlab.cloud/speedrichr/api/{addList,addbackground,backgroundenrich}`
+- **Supported Libraries**: Every library Enrichr currently serves (228 at time of writing)
+
+Note: Enrichr emits bare `Infinity` literals for the odds ratio when a term's overlap
+with the background is complete — which is not valid JSON. This server parses those
+responses correctly; a naive `JSON.parse` on the raw response will throw.
 
 ## Development
 

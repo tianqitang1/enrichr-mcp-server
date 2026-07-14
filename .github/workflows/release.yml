@@ -19,7 +19,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          # vitest requires >=20; the published package still supports Node 18
+          # at runtime (see "engines" in package.json), this is build/test only.
+          node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
