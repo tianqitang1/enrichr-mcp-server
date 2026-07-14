@@ -1,0 +1,19 @@
+{
+  "name": "enrichr-mcp-server",
+  "description": "Gene set enrichment analysis via the Enrichr API: MCP tools for enrichment and library discovery, plus an enrichr-api skill for raw API work the tools do not cover (reverse gene lookup, library download, batch enrichment)",
+  "version": "0.4.1",
+  "author": {
+    "name": "Tianqi Tang",
+    "email": "tianqi.tang@ucsf.edu"
+  },
+  "homepage": "https://github.com/tianqitang1/enrichr-mcp-server",
+  "repository": "https://github.com/tianqitang1/enrichr-mcp-server",
+  "license": "MIT",
+  "keywords": [
+    "enrichr",
+    "bioinformatics",
+    "enrichment-analysis",
+    "gene-ontology",
+    "mcp"
+  ]
+}

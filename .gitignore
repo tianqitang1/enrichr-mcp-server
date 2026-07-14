@@ -2,3 +2,10 @@ node_modules/
 build/
 *.log
 .env*
+
+# Build artifact — the release workflow regenerates this via `dxt pack`
+*.dxt
+
+# Python bytecode from skills/
+__pycache__/
+*.pyc
