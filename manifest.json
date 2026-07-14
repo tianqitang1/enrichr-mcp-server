@@ -1,8 +1,8 @@
 {
-  "manifest_version": "0.3",
+  "dxt_version": "0.1",
   "name": "enrichr-mcp-server",
   "display_name": "Enrichr MCP Server",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Gene set enrichment analysis using Enrichr API with multi-library support",
   "long_description": "A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the Enrichr API. This server supports all available gene set libraries from Enrichr and returns only statistically significant results (adjusted p < 0.05) for LLM tools to interpret.\n\nFeatures:\n- Multi-Library Enrichment Analysis: Query multiple Enrichr libraries simultaneously\n- Library Discovery: suggest_libraries tool finds relevant libraries by keyword\n- Guided Workflow: enrichment_analysis prompt for end-to-end analysis\n- Library Catalog: Browse 200+ libraries by category via resources\n- Comprehensive Library Support: Access to hundreds of gene set libraries including GO, pathways, diseases, tissues, drugs\n- Parallel library queries for fast multi-database analysis\n- Structured output for programmatic downstream processing\n- Configurable output formats: detailed, compact, or minimal\n- Export results to TSV files",
   "author": {
@@ -44,7 +44,9 @@
   "prompts": [
     {
       "name": "enrichment_analysis",
-      "description": "Guided workflow for gene set enrichment analysis with library selection and interpretation"
+      "description": "Guided workflow for gene set enrichment analysis with library selection and interpretation",
+      "arguments": ["genes", "context"],
+      "text": "Run a gene set enrichment analysis on the gene list in ${arguments.genes}. First call suggest_libraries with the research context in ${arguments.context} to choose the most relevant Enrichr libraries, then call enrichr_analysis with those libraries. If the genes were drawn from a restricted universe rather than the whole genome, pass that universe as the background. When interpreting the results, look for themes that converge across libraries, note the top enriched pathways, and flag any library whose result came back with backgroundCorrected set to false."
     }
   ],
   "keywords": ["enrichr", "gene-ontology", "go", "bioinformatics", "enrichment-analysis", "mcp"],
@@ -60,7 +62,7 @@
     "libraries": {
       "type": "string",
       "title": "Default Libraries",
-      "description": "Comma-separated list of Enrichr libraries to query by default (e.g., GO_Biological_Process_2025,KEGG_2021_Human). Use 'pop' for popular libraries.",
+      "description": "Comma-separated list of Enrichr libraries to query by default (e.g., GO_Biological_Process_2026,KEGG_2026). Use 'pop' for popular libraries.",
       "default": "pop",
       "required": false
     },
