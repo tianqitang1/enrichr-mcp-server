@@ -6,7 +6,7 @@
 
 A Model Context Protocol (MCP) server that provides gene set enrichment analysis using the [Enrichr](https://maayanlab.cloud/Enrichr/) API. This server supports all available gene set libraries from Enrichr and returns only statistically significant results (corrected-$p$ < 0.05) for LLM tools to interpret.
 
-[![Smithery](https://smithery.ai/badge/enrichr-mcp-server)](https://smithery.ai/server/enrichr-mcp-server)
+[![LightNow capabilities](https://lightnow.ai/badge/io.github.tianqitang1/enrichr-mcp-server)](https://lightnow.ai/servers/io.github.tianqitang1/enrichr-mcp-server)
 
 ## Installation
 
